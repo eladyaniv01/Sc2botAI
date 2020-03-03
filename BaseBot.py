@@ -1,9 +1,9 @@
+
 import os
 import sys
-
+from Sc2botAI.settings import PROJECT_DIR
+sys.path.append(os.path.join(os.path.dirname(__file__), PROJECT_DIR))
 from sc2 import run_game, maps
-
-sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
 
 import numpy as np
 
@@ -11,18 +11,23 @@ import sc2
 from sc2 import Race, Difficulty
 from sc2.player import Bot, Computer
 from sc2.position import Point2, Point3
+from sc2.game_info import Ramp
+from Sc2botAI import base
+from Sc2botAI.base.managers.expansion_manager import ExpansionManager
 
 
-
-class Lucy(sc2.BotAI):
+class BaseBot(sc2.BotAI):
 
     def __init__(self, debug=False):
         super().__init__()
         self.debug = debug
         self._cached_ramps = {}
-        self._expansions = {}
+        self.expansion_manager = ExpansionManager(ai = self)
+
 
     async def on_step(self, iteration):
+        self.expansion_manager.solve_expansions()
+
         if self.debug:
             self.draw_debug()
 
@@ -102,16 +107,10 @@ class Lucy(sc2.BotAI):
                 )
 
     def draw_expansions(self):
-        # main_pos = Point2((self.townhalls[0]._proto.pos.x,self.townhalls[0]._proto.pos.y))
-        main_pos = self.main_base_ramp.depot_in_middle
-        expansion_list = sorted(list(self.expansion_locations),
-               key=lambda x: x.distance_to_point2(main_pos), reverse=False)
-        for distance_index, exp in enumerate(expansion_list):
-            self._expansions[distance_index] = exp
-        map_area = self._game_info.playable_area
 
-        for index, location in self._expansions.items():
-
+        expansion_dict = self.expansion_manager.expansions
+        for index, info in expansion_dict.items():
+            location, resources = info.coords, info.resources
             name = "Expansion"
             if index == 1:
                 name = "Expansion - Natural"
@@ -137,20 +136,18 @@ class Lucy(sc2.BotAI):
                             f"{name} {index}",
                             f"distance_to_main: {distance_to_main:.2f}",
                             f"Coords: ({p.position.x:.2f},{p.position.y:.2f})",
-
+                            f"Resources: ({len(resources)})",
                         ]
                     ),
                     pos,
                     color=(0, 255, 0),
                     size=12,
                 )
-def main():
-    run_game(
-        maps.get("AutomatonLE"),
-        [Bot(Race.Terran, Lucy(debug=True)), Computer(Race.Protoss, Difficulty.Easy)],
-        realtime=True,
-    )
+
+run_game(
+    maps.get("AutomatonLE"),
+    [Bot(Race.Terran, BaseBot(debug=True)), Computer(Race.Protoss, Difficulty.Easy)],
+    realtime=True,
+)
 
 
-if __name__ == "__main__":
-    main()
