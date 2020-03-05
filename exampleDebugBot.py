@@ -211,13 +211,13 @@ class RampWallBot(sc2.BotAI):
                 color = Point3((255, 0, 0))
                 self._client.debug_line_out(p0, p1, color=color)
 
-            # Draw text on barracks
-            if structure.type_id == UnitTypeId.BARRACKS:
-                # Blue
-                color = Point3((0, 0, 255))
-                pos = structure.position3d + Point3((0, 0, 0.5))
-                # TODO: Why is this text flickering
-                self._client.debug_text_world(text="MY RAX", pos=pos, color=color, size=16)
+                # Draw text on barracks
+                if structure.type_id == UnitTypeId.BARRACKS:
+                    # Blue
+                    color = Point3((0, 0, 255))
+                    pos = structure.position3d + Point3((0, 0, 0.5))
+                    # TODO: Why is this text flickering
+                    self._client.debug_text_world(text="MY RAX", pos=pos, color=color, size=16)
 
         # Draw text in top left of screen
         self._client.debug_text_screen(text="Hello world!", pos=Point2((0, 0)), color=None, size=16)
