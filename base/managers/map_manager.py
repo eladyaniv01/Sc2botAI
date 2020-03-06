@@ -1,5 +1,8 @@
 from collections import namedtuple
+from typing import Union
+
 from Sc2botAI.base.common import Expansion, RampExt
+from sc2.position import Point3, Point2
 
 ExpansionTuple = namedtuple("Expansion", ["name", "coords", "resources", "ramp"])
 
@@ -14,6 +17,7 @@ class MapManager:
         self.cached_ramps = {}
         self.expansions = {}
         self._solved = False
+
 
     def solve_ramps(self):
         for index, ramp in enumerate(self.ai.game_info.map_ramps):
@@ -32,6 +36,7 @@ class MapManager:
 
         for index, info in enumerate(expansion_dict):
             expansion = Expansion(
+                ai=self.ai,
                 index=index,
                 coords=info[0],
                 resources=info[1],

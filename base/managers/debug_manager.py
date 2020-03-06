@@ -1,4 +1,5 @@
 from sc2.position import Point3, Point2
+import numpy as np
 
 
 class DebugManager:
@@ -6,9 +7,10 @@ class DebugManager:
         self.ai = ai
 
     def draw_debug(self):
-        # self.draw_placement_grid()
+        #
         self.draw_ramps()
         self.draw_expansions()
+
         for structure in self.ai.structures:
             self.ai.client.debug_text_world(
                 "\n".join(
@@ -23,24 +25,45 @@ class DebugManager:
                 color=(0, 255, 0),
                 size=12,
             )
+    def draw_expansion_grid(self, expansion, color):
 
-    def draw_placement_grid(self):
+        if len(expansion.borders) == 0:
+            expansion.set_borders()
+
+        for p in expansion.borders:
+            p = Point2(p)
+            h2 = self.ai.get_terrain_z_height(p)
+            pos = Point3((p.x, p.y, h2))
+            p0 = Point3((pos.x - 0.25, pos.y - 0.25, pos.z + 0.25)) + Point2((0.5, 0.5))
+            p1 = Point3((pos.x + 0.25, pos.y + 0.25, pos.z - 0.25)) + Point2((0.5, 0.5))
+            # color = Point3((0, 255, 0))
+            self.ai.client.debug_box_out(p0, p1, color=color)
+
+
+
+
+    def draw_placement_grid(self, expansion):
         map_area = self.ai.game_info.playable_area
         for (b, a), value in np.ndenumerate(self.ai.game_info.placement_grid.data_numpy):
+            #skip non placements which are zero
             if value == 0:
                 continue
+
+
             # Skip values outside of playable map area
             if not (map_area.x <= a < map_area.x + map_area.width):
                 continue
             if not (map_area.y <= b < map_area.y + map_area.height):
                 continue
+
             p = Point2((a, b))
-            h2 = self.get_terrain_z_height(p)
-            pos = Point3((p.x, p.y, h2))
-            p0 = Point3((pos.x - 0.25, pos.y - 0.25, pos.z + 0.25)) + Point2((0.5, 0.5))
-            p1 = Point3((pos.x + 0.25, pos.y + 0.25, pos.z - 0.25)) + Point2((0.5, 0.5))
-            color = Point3((0, 255, 0))
-            self.ai.client.debug_box_out(p0, p1, color=color)
+            if expansion.is_in(p):
+                h2 = self.ai.get_terrain_z_height(p)
+                pos = Point3((p.x, p.y, h2))
+                p0 = Point3((pos.x - 0.25, pos.y - 0.25, pos.z + 0.25)) + Point2((0.5, 0.5))
+                p1 = Point3((pos.x + 0.25, pos.y + 0.25, pos.z - 0.25)) + Point2((0.5, 0.5))
+                color = Point3((0, 255, 0))
+                self.ai.client.debug_box_out(p0, p1, color=color)
 
     def draw_ramps(self):
         for index, ramp in self.ai.map_manager.cached_ramps.items():
@@ -77,7 +100,12 @@ class DebugManager:
 
     def draw_expansions(self):
 
-        for expansion in self.ai.map_manager.expansions.values():
+        for i, expansion in enumerate(self.ai.map_manager.expansions.values()):
+            if i%2 == 0:
+                color = Point3((0, 255, 0))
+            else:
+                color = Point3((255, 0, 0))
+            self.draw_expansion_grid(expansion,color)
             p = expansion.coords
             if isinstance(p, Point2):
                 h2 = self.ai.get_terrain_z_height(p)
@@ -87,9 +115,7 @@ class DebugManager:
                 distance_to_main = p.distance_to_point2(self.ai.main_base_ramp.depot_in_middle)
                 if distance_to_main < 16.0:
                     continue
-                color = Point3((0, 255, 0))
-                color_zone =Point3((0, 255, 0))
-                self.ai.client.debug_sphere_out(p0, 16.8, color=color_zone)
+
                 self.ai.client.debug_box_out(p0, p1, color=color)
                 self.ai.client.debug_text_world(
                     "\n".join(
