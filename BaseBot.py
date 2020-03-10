@@ -17,8 +17,7 @@ class BaseBot(sc2.BotAI):
         super().__init__()
         self.created_at = dt.timestamp(dt.now())
         self.debug = debug
-        if self.debug:
-            self.debug_manager = DebugManager(ai=self)
+        self.debug_manager = DebugManager(ai=self)
         self.map_manager = MapManager(ai=self)
 
     async def on_step(self, iteration):

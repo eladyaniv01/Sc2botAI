@@ -1,10 +1,11 @@
 from collections import namedtuple
 from typing import Union
 
-from Sc2botAI.base.common import Expansion, RampExt
+from Sc2botAI.base.Expansion import Expansion
+from Sc2botAI.base.RampExt import  RampExt
 from sc2.position import Point3, Point2
 
-ExpansionTuple = namedtuple("Expansion", ["name", "coords", "resources", "ramp"])
+# ExpansionTuple = namedtuple("Expansion", ["name", "coords", "resources", "ramp"])
 
 
 # TODO base manager for all managers
@@ -17,6 +18,16 @@ class MapManager:
         self.cached_ramps = {}
         self.expansions = {}
         self._solved = False
+        self.townhall_color = Point3((200, 170, 55)) #gold
+        self.building_color = Point3((255, 0, 0)) #red
+        self.depot_color = Point3((55, 255, 200)) #lBlue
+        self.turret_color = Point3((0, 0, 255))
+        self.mineral_color = Point3((55, 200, 255)) #blue
+        self.gas_color = Point3((0, 155, 0)) # green
+        self.empty_color = Point3((255, 255, 255)) #white
+        self.not_buildable_color = Point3((0, 0, 0)) #black
+        self.ramp_color = Point3((139, 0, 0)) # brown
+        self.vision_blocker_color = Point3((139, 0, 80)) #purple
 
 
     def solve_ramps(self):
@@ -31,7 +42,7 @@ class MapManager:
             return True
         self.solve_ramps()
         expansion_dict = sorted(self.ai.expansion_locations.items(),
-                                key=lambda x: x[0].distance_to_point2(self.ai.main_base_ramp.depot_in_middle),
+                                key=lambda x: x[0].distance_to_point2(list(self.ai.main_base_ramp.points)[0]),
                                 reverse=False)
 
         for index, info in enumerate(expansion_dict):
@@ -43,6 +54,7 @@ class MapManager:
                 ramps=self.get_exp_ramps(info[0])
             )
             self.expansions[index] = expansion
+            expansion.set_borders()
 
             [ramp.expansions.append(expansion) for ramp in expansion.ramps]
 
