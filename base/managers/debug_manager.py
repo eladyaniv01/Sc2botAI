@@ -4,11 +4,14 @@ list
 GREEN = Point3((0, 255, 0))
 RED = Point3((255, 0, 0))
 BLUE = Point3((0, 0, 255))
+
+
 class DebugManager:
     def __init__(self, ai=None):
         self.ai = ai
 
     def draw_debug(self):
+        return True #temp
         # self.draw_ramps()
         self.draw_expansions()
         self.draw_turret_placement()
@@ -22,7 +25,8 @@ class DebugManager:
         if not color:
             color = Point3((0, 255, 0))
         if not point_list or (not text and not box_r):
-            print("cant draw nothing !")
+            return True
+            # print("cant draw nothing !")
 
         for p in point_list:
             p = Point2(p)

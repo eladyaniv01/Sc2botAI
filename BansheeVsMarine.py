@@ -50,7 +50,7 @@ class BansheeVSMarines(sc2.BotAI):
                 enemies_in_range = self.enemy_units.filter(lambda u: unit.target_in_range(u))
                 enemies_can_attack_me = enemies_in_range.filter(lambda u: u.target_in_range(unit, 0.5))
 
-                # attack lowest hp enemy if any enemy is in range
+                # attack lowest hp closest if any closest is in range
                 if enemies_in_range:
                     # Use cloak
                     if self.already_pending_upgrade(UpgradeId.BANSHEECLOAK) == 1 and not unit.has_buff(BuffId.BANSHEECLOAK):
@@ -67,7 +67,7 @@ class BansheeVSMarines(sc2.BotAI):
                         lowest_hp_enemy_in_range = min(filtered_enemies_in_range, key=lambda u: u.health)
                         actions.append(unit.attack(lowest_hp_enemy_in_range))
 
-                # no enemy is in attack-range, so give attack command to closest instead
+                # no closest is in attack-range, so give attack command to closest instead
                 else:
                     closest_enemy = self.enemy_units.closest_to(unit)
                     actions.append(unit.attack(closest_enemy))
@@ -94,8 +94,8 @@ class BansheeVSMarines(sc2.BotAI):
             #     log(len(enemies_can_attack_me))
             #     log(unit)
             #     log("---")
-            #     for enemy in enemies_can_attack_me:
-            #         log(enemy)
+            #     for closest in enemies_can_attack_me:
+            #         log(closest)
 
         await self._do_actions(actions)
         await self._client.send_debug()

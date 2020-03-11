@@ -1,136 +1,128 @@
-import sc2
-from sc2 import Race
-from sc2.player import Bot
-
-from sc2.units import Units
-from sc2.unit import Unit
-from sc2.position import Point2, Point3
-
-from sc2.ids.unit_typeid import UnitTypeId
-from sc2.ids.upgrade_id import UpgradeId
-from sc2.ids.buff_id import BuffId
-from sc2.ids.ability_id import AbilityId
-
-from typing import List, Dict, Set, Tuple, Any, Optional, Union  # mypy type checking
-
-"""
-To play an arcade map, you need to download the map first.
-Open the StarCraft2 Map Editor through the Battle.net launcher, in the top left go to
-File -> Open -> (Tab) Blizzard -> Log in -> with "Source: Map/Mod Name" search for your desired map, in this example "Marine Split Challenge-LOTV" map created by printf
-Hit "Ok" and confirm the download. Now that the map is opened, go to "File -> Save as" to store it on your hard drive.
-Now load the arcade map by entering your map name below in
-sc2.maps.get("YOURMAPNAME") without the .SC2Map extension
-Map info:
-You start with 30 marines, level N has 15+N speed banelings on creep
-Type in game "sling" to activate zergling+baneling combo
-Type in game "stim" to activate stimpack
-Improvements that could be made:
-- Make marines constantly run if they have a ling/bane very close to them
-- Split marines before engaging
-"""
+import sc2pathlibp
+import time
+from typing import List
+import numpy as np
 
 
-class MarineSplitChallenge(sc2.BotAI):
-    async def on_step(self, iteration):
-        actions = []
-        # do marine micro vs zerglings
-        for unit in self.units(UnitTypeId.MARINE):
-            enemies_can_attack_me = []
-            enemies_in_range = self.enemy_units.filter(lambda u: unit.target_in_range(u, -0.5))
-            if not enemies_in_range:
-                break
-            enemies_can_attack_me = enemies_in_range.filter(lambda u: u.target_in_range(unit, 0.5))
-
-            # attack (or move towards) zerglings / banelings
-            if unit.weapon_cooldown <= self._client.game_step / 2:
-                enemies_in_range = self.enemy_units.filter(lambda u: unit.target_in_range(u))
-                enemies_can_attack_me = enemies_in_range.filter(lambda u: u.target_in_range(unit, 0.5))
-
-                # attack lowest hp enemy if any enemy is in range
-                if enemies_in_range:
-                    # Use stimpack
-                    if self.already_pending_upgrade(UpgradeId.STIMPACK) == 1 and not unit.has_buff(BuffId.STIMPACK) and unit.health > 10:
-                        actions.append(unit(AbilityId.EFFECT_STIM))
+def read_maze(file_name: str) -> List[List[int]]:
+    with open(file_name, "r") as text:
+        m = text.read()
+    lines = m.split("\n")
+    final_maze = []
+    for y in range(0, len(lines[0])):
+        maze_line = []
+        final_maze.append(maze_line)
+        for x in range(0, len(lines)):
+            maze_line.append(int(lines[x][y]))
+    return final_maze
 
 
-                    # attack baneling first
-                    filtered_enemies_in_range = enemies_in_range.of_type(UnitTypeId.BANELING)
+maze = read_maze("tests/maze4x4.txt")
+pf = sc2pathlibp.PathFinder(maze)
+for row in pf.map:
+    print(row)
 
-                    #if not filtered_enemies_in_range:
-                        #filtered_enemies_in_range = enemies_in_range.of_type(UnitTypeId.ZERGLING)
-                    # attack lowest hp unit
-                    if filtered_enemies_in_range:
-                        lowest_hp_enemy_in_range = min(filtered_enemies_in_range, key=lambda u: u.health)
-                        if iteration % 10 == 0:
-                            actions.append(unit.attack(lowest_hp_enemy_in_range))
+print(pf.width)
+print(pf.height)
 
-                # no enemy is in attack-range, so give attack command to closest instead
-                else:
-                    closest_enemy = self.enemy_units.closest_to(unit)
-                    actions.append(unit.attack(closest_enemy))
-
-
-            # move away from zergling / banelings
-            else:
-                stutter_step_positions = self.position_around_unit(unit, distance=4)
-
-                # filter in pathing grid
-                stutter_step_positions = {p for p in stutter_step_positions if self.in_pathing_grid(p)}
-
-                # find position furthest away from enemies and closest to unit
-                enemies_in_range = self.enemy_units.filter(lambda u: unit.target_in_range(u, -0.5))
-                enemies_can_attack_me = enemies_in_range.filter(lambda u: u.target_in_range(unit, 0.5))
-                if stutter_step_positions and enemies_in_range:
-                    retreat_position = max(stutter_step_positions, key=lambda x: x.distance_to(enemies_in_range.center) - x.distance_to(unit))
-                    actions.append(unit.move(retreat_position))
-
-                else:
-                    if iteration % 3 == 0 and iteration % 4 == 0:
-                        self.log("No retreat positions detected for unit {} at {}.".format(unit, unit.position.rounded))
-            # if len(enemies_can_attack_me) > 0:
-            #     log(len(enemies_can_attack_me))
-            #     log(unit)
-            #     log("---")
-            #     for enemy in enemies_can_attack_me:
-            #         log(enemy)
-
-        await self._do_actions(actions)
-    async def on_start(self):
-        await self.chat_send("Edit this message for automatic chat commands.")
-        self._client.game_step = 4  # do actions every X frames instead of every 8th
-
-    def position_around_unit(
-        self,
-        pos: Union[Unit, Point2, Point3],
-        distance: int = 1,
-        step_size: int = 1,
-        exclude_out_of_bounds: bool = True,
-    ):
-        pos = pos.position.to2.rounded
-        positions = {
-            pos.offset(Point2((x, y)))
-            for x in range(-distance, distance + 1, step_size)
-            for y in range(-distance, distance + 1, step_size)
-            if (x, y) != (0, 0)
-        }
-        # filter positions outside map size
-        if exclude_out_of_bounds:
-            positions = {
-                p
-                for p in positions
-                if 0 <= p[0] < self._game_info.pathing_grid.width and 0 <= p[1] < self._game_info.pathing_grid.height
-            }
-        return positions
+p0 = (0, 0)
+p1 = (0, 2)
+point_array = pf.map.copy()
+point_array[0][0] = 'S' #start
+point_array[0][2] = 'E' #end
+print(f"finding path from {p0} -> {p1}")
+for i in range(len(point_array)):
+    for j in range(len(point_array[0])):
+        point_array[i][j] = " " + str(point_array[i][j]) + " "
+for row in point_array:
+    print(row)
+path = pf.find_path(p0, p1)
+print(f"pf.find_path(p0, p1) : {path}")
+for i, cell in enumerate(path[0]):
+    # print(cell)
+    # print(type(cell))
+    point_array[cell[0]][cell[1]] = "_" + str(i) + "_"
 
 
-def main():
-    sc2.run_game(
-        sc2.maps.get("MarineMicro"),
-        [Bot(Race.Terran, MarineSplitChallenge())],
-        realtime=False,
-        save_replay_as="Example.SC2Replay",
-    )
 
+for row in point_array:
+    print(row)
+pf.normalize_influence(100)
+print(pf.lowest_influence_in_grid((2, 2), 5))
+print(pf.find_path((0, 0), (0, 2)))
 
-if __name__ == "__main__":
-    main()
+# maze = read_maze("tests/AutomatonLE.txt")
+# pf = sc2pathlibp.PathFinder(maze)
+# pf.normalize_influence(10)
+#
+# pf.heuristic_accuracy = 0
+# result = pf.find_path((32, 51), (150, 129))
+# print(f"path distance 0: {result[1]} for path: {result[0]}")
+#
+# pf.heuristic_accuracy = 1
+# result = pf.find_path((32, 51), (150, 129))
+# print(f"path distance 1: {result[1]} for path: {result[0]}")
+#
+# pf.heuristic_accuracy = 2
+# result = pf.find_path((32, 51), (150, 129))
+# print(f"path distance 2: {result[1]} for path: {result[0]}")
+#
+# pf.heuristic_accuracy = 0
+# result = pf.find_path_influence((32, 51), (150, 129))
+# print(f"path influenced distance 0: {result[1]} for path: {result[0]}")
+# pf.heuristic_accuracy = 1
+# result = pf.find_path_influence((32, 51), (150, 129))
+# print(f"path influenced distance 1: {result[1]} for path: {result[0]}")
+# pf.heuristic_accuracy = 2
+# result = pf.find_path_influence((32, 51), (150, 129))
+# print(f"path influenced distance 2: {result[1]} for path: {result[0]}")
+#
+# expansions = [
+#     (29, 65), (35, 34),
+#     (63, 26), (56, 65),
+#     (98, 26), (80, 66),
+#     (33, 105), (129, 28),
+#     (54, 151), (150, 74),
+#     (103, 113), (85, 153),
+#     (127, 114), (120, 153),
+#     (148, 145), (154, 114)
+# ]
+#
+# total_distance = 0
+# ns_pf = time.perf_counter_ns()
+# pf.normalize_influence(100)
+# pf.heuristic_accuracy = 2
+# results = []
+# for pos1 in expansions:
+#     for pos2 in expansions:
+#         result = pf.find_path(pos1, pos2, False)
+#         results.append(result)
+#         total_distance += result[1]
+#
+# ns_pf = time.perf_counter_ns() - ns_pf
+#
+#
+# print(f"pathfinding took {ns_pf / 1000 / 1000} ms. Total distance {total_distance}")
+#
+# ns_pf = time.perf_counter_ns()
+# pf.add_influence([(56, 65), (110, 28), (100, 98)], 150, 10, False)
+# ns_pf = time.perf_counter_ns() - ns_pf
+# print(f"adding influence took {ns_pf / 1000 / 1000} ms.")
+#
+# pf.normalize_influence(100)
+#
+# ns_pf = time.perf_counter_ns()
+# pf.add_influence_walk([(56, 65), (110, 28), (100, 98)], 150, 10, False)
+# ns_pf = time.perf_counter_ns() - ns_pf
+# print(f"adding influence by walking distance took {ns_pf / 1000 / 1000} ms.")
+#
+# # result = pf.find_path_influence((29, 65), (154, 114))
+# results.append(pf.find_path_influence((29, 65), (154, 114)))
+# [pf.plot(result[0]) for result in results]
+# print(pf.map)
+# # pf.reset()
+# # pf.normalize_influence(100)
+# pf.plot(result[0])
+# pf.create_block([(11.5, 11.5), (21.5, 21.5), (31.5, 31.5), (31.5, 31.5)], (2, 1))
+# pf.plot(result[0])
+input("Press Enter to continue...")

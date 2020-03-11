@@ -56,10 +56,10 @@ class RampWallBot(sc2.BotAI):
         # Draw visibility pixelmap for debugging purposes
         self.draw_visibility_pixelmap()
 
-        # Draw some example boxes around units, lines towards command center, text on the screen and barracks
+        # Draw some example boxes around unitsT, lines towards command center, text on the screen and barracks
         self.draw_example()
 
-        # Draw if two selected units are facing each other - green if this guy is facing the other, red if he is not
+        # Draw if two selected unitsT are facing each other - green if this guy is facing the other, red if he is not
         self.draw_facing_units()
 
         depot_placement_positions = self.main_base_ramp.corner_depots

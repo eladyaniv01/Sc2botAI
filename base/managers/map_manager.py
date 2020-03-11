@@ -35,8 +35,6 @@ class MapManager:
             self.cached_ramps[index] = RampExt(ramp=ramp, index=index)
 
     def solve_expansions(self):
-        if self._solved:
-            return True
         if not self.ai:
             print("Seems like this manager is not connected to any ai")
             return True

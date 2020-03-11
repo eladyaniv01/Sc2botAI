@@ -1,4 +1,4 @@
-from Sc2botAI.BaseBot import BaseBot
+from Sc2botAI.BaseBot import BaseBot, QLearningTable
 import sys, os
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
@@ -13,287 +13,407 @@ from sc2.position import Point2, Point3
 from sc2.unit import Unit
 from sc2.units import Units
 
+ACTION_DO_NOTHING = 'donothing'
+ACTION_BUILD_SCV = 'trainscv'
+ACTION_BUILD_SUPPLY_DEPOT = 'buildsupplydepot'
+ACTION_BUILD_BARRACKS = 'buildbarracks'
+ACTION_BUILD_MARINE = 'buildmarine'
+ACTION_ATTACK = 'attack'
+
+
+smart_actions = [
+    ACTION_DO_NOTHING,
+    ACTION_BUILD_SCV,
+    ACTION_BUILD_SUPPLY_DEPOT,
+    ACTION_BUILD_BARRACKS,
+    ACTION_BUILD_MARINE,
+    ACTION_ATTACK
+]
+
+
+
+KILL_UNIT_REWARD = 0.3
+KILL_BUILDING_REWARD = 0.9
+NO_MINERAL_FLOAT_REWARD = 0.5
+NO_MINERAL_FLOAT_PENALTY = -0.5
+GREATER_FOOD_REWARD = 0.4
+GREATER_FOOD_PENALTY = -0.7
+
+
+# Stolen from https://github.com/MorvanZhou/Reinforcement-learning-with-tensorflow
+
+
 
 class PickleRick(BaseBot):
     def __init__(self, debug = False):
         super().__init__(debug=debug)
         self.sent_order = False
+        # self.qlearn = QLearningTable(actions=list(range(len(smart_actions))))
+        self.previous_killed_unit_score = 0
+        self.previous_killed_building_score = 0
+        self.previous_food_score = 0
+        self.previous_minerals = 75
+        self.previous_action = None
+        self.previous_state = None
+        self.action_space_cache = []
+
 
     async def on_step(self, iteration):
         await super().on_step(iteration)
-        ccs = self.townhalls(COMMANDCENTER)
-        if not ccs:
-            return
-        else:
-            cc = ccs.first
 
-        await self.distribute_workers()
-        if not self.structures(BARRACKS):
-            await self.client.debug_create_unit([[UnitTypeId.BARRACKS,1, self.main_base_ramp.barracks_correct_placement,1]])
-        if self.can_afford(SCV) and self.workers.amount < 16 and cc.is_idle:
-            self.do(cc.train(SCV), subtract_cost=True, subtract_supply=True)
+        # training block
 
-        # Raise depos when enemies are nearby
-        for depo in self.structures(SUPPLYDEPOT).ready:
-            for unit in self.enemy_units:
-                if unit.distance_to(depo) < 15:
-                    break
-            else:
-                self.do(depo(MORPH_SUPPLYDEPOT_LOWER))
+        enemy_units = self.enemy_units
+        enemy_workers = self.enemy_units(UnitTypeId.DRONE)
+        lings = self.enemy_units(UnitTypeId.ZERGLING)
+        queens = self.enemy_units(UnitTypeId.QUEEN)
+        lings = lings | queens
+        good_units = enemy_workers | lings
 
-        # Lower depos when no enemies are nearby
-        for depo in self.structures(SUPPLYDEPOTLOWERED).ready:
-            for unit in self.enemy_units:
-                if unit.distance_to(depo) < 10:
-                    self.do(depo(MORPH_SUPPLYDEPOT_RAISE))
-                    break
+        bad_units = [x for x in enemy_units if x not in good_units]
+        bad_flying = [x for x in bad_units if (x.is_flying and x.type_id != UnitTypeId.OVERLORD)]
+        for u in bad_flying:
+            await self.client.debug_kill_unit(u)
 
-        # Draw ramp points
-        self.draw_ramp_points()
-        if self.structures(UnitTypeId.ENGINEERINGBAY).amount > 0 and not self.already_pending(UnitTypeId.ENGINEERINGBAY) > 0:
-            # print(f"len turret queue : {len(self.map_manager.expansions[0].turret_queue)}")
-            q = self.map_manager.expansions[1].turret_queue
-            if len(q) and not self.already_pending(UnitTypeId.MISSILETURRET):
-                turret_position = Point2(q.pop())
+        if self.iteration % 500 == 0:
+            for u in bad_units:
+                await self.client.debug_kill_unit(u)
+        # if self.iteration == 2502:
+        #     await self.client.leave()
+        if not self.units(UnitTypeId.THOR):
+            await self.client.debug_create_unit(
+                [[UnitTypeId.THOR, 1, self.main_base_ramp.depot_in_middle, 1]])
 
-                await self.build(UnitTypeId.MISSILETURRET,near=turret_position)
-            # else:
-            #     print("no turret queue")
+        if not self.units(UnitTypeId.REAPER):
+
+            n = 1
+            loc = random.choice(self.enemy_start_locations).towards_with_random_angle(self.game_info.map_center,distance=50)
+            loc2 = random.choice(self.enemy_start_locations).towards_with_random_angle(self.game_info.map_center,distance=50)
+            loc3 = random.choice(self.enemy_start_locations).towards_with_random_angle(self.game_info.map_center,distance=50)
+            if self.iteration > 175:
+                n = 1
+                await self.client.debug_create_unit(
+                    [[UnitTypeId.REAPER, 1, loc2, 1]])
+            if self.iteration > 325:
+                n = 2
+                await self.client.debug_create_unit(
+                    [[UnitTypeId.REAPER, 1, loc3, 1]])
+            if self.iteration > 650:
+                n = 3
+                await self.client.debug_create_unit(
+                    [[UnitTypeId.REAPER, 1, loc2, 1]])
+            if self.iteration > 900:
+                n = 4
+                await self.client.debug_create_unit(
+                    [[UnitTypeId.REAPER, 2, loc, 1]])
 
 
-                # self.map_manager.expansions[0].turrets = iter(list(self.map_manager.expansions[0].turrets))
-                # for turret_position in self.map_manager.expansions[0].turrets.__next__():
-                #     await self.build(UnitTypeId.MISSILETURRET, near=Point2(turret_position))
+            return True
 
-        # # Draw pathing grid
-        # self.draw_pathing_grid()
+            if not self.enemy_units(UnitTypeId.QUEEN):
+                await self.client.debug_create_unit(
+                    [[UnitTypeId.QUEEN, 1, random.choice(self.enemy_start_locations), 2]])
 
-        # Draw placement  grid
-        # self.draw_placement_grid()
+        return True
 
-        # Draw vision blockers
-        # self.draw_vision_blockers()
-
-        # Draw visibility pixelmap for debugging purposes
-        # self.draw_visibility_pixelmap()
-
-        # Draw some example boxes around units, lines towards command center, text on the screen and barracks
-        # self.draw_example()
-
-        # Draw if two selected units are facing each other - green if this guy is facing the other, red if he is not
-        # self.draw_facing_units()
-
-        depot_placement_positions = self.main_base_ramp.corner_depots
-        # Uncomment the following if you want to build 3 supply depots in the wall instead of a barracks in the middle + 2 depots in the corner
-        # depot_placement_positions = self.main_base_ramp.corner_depots | {self.main_base_ramp.depot_in_middle}
-
-        barracks_placement_position = self.main_base_ramp.barracks_in_middle
-        # If you prefer to have the barracks in the middle without room for addons, use the following instead
-        # barracks_placement_position = self.main_base_ramp.barracks_in_middle
-
-        depots = self.structures.of_type({SUPPLYDEPOT, SUPPLYDEPOTLOWERED})
-
-        # Filter locations close to finished supply depots
-        if depots:
-            depot_placement_positions = {d for d in depot_placement_positions if depots.closest_distance_to(d) > 1}
-
-        # Build depots
-        if self.can_afford(SUPPLYDEPOT) and self.already_pending(SUPPLYDEPOT) == 0:
-            if len(depot_placement_positions) == 0:
-                return
-            # Choose any depot location
-            target_depot_location = depot_placement_positions.pop()
+        if (self.supply_left < 5 
+                and self.townhalls.exists
+                and self.supply_used >= 14
+                and self.can_afford(UnitTypeId.SUPPLYDEPOT)
+                and self.structures(UnitTypeId.SUPPLYDEPOT).not_ready.amount + self.already_pending(
+            UnitTypeId.SUPPLYDEPOT)
+                < 1
+        ):
             ws = self.workers.gathering
-            if ws:  # if workers were found
-                w = ws.random
-                self.do(w.build(SUPPLYDEPOT, target_depot_location))
+            if ws:  # if workers found
+                w = ws.furthest_to(ws.center)
+                loc = await self.find_placement(UnitTypeId.SUPPLYDEPOT, w.position, placement_step=3)
+                if loc:  # if a placement location was found
+                    # build exactly on that location
+                    self.do(w.build(UnitTypeId.SUPPLYDEPOT, loc))
 
-        # Build barracks
-        if depots.ready and self.can_afford(BARRACKS):
-            # if self.structures(BARRACKS).amount + self.already_pending(BARRACKS) > 0:
-            #     return
-            if not self.structures(BARRACKS):
-                await self.client.debug_create_unit([[UnitTypeId.BARRACKS,1, Point2((149,112))]])
-                ws = self.workers.gathering
-                if ws and barracks_placement_position:  # if workers were found
-                    w = ws.random
-                    self.do(w.build(BARRACKS, barracks_placement_position))
+        # lower all depots when finished
+        for depot in self.structures(UnitTypeId.SUPPLYDEPOT).ready:
+            self.do(depot(AbilityId.MORPH_SUPPLYDEPOT_LOWER))
 
-        marines: Units = self.units(UnitTypeId.MARINE).idle
-        if marines.amount > 15:
-            target = self.enemy_structures.random_or(self.enemy_start_locations[0]).position
-            for marine in marines:
-                self.do(marine.attack(target))
+        # morph commandcenter to orbitalcommand
+        if self.structures(UnitTypeId.BARRACKS).ready.exists and self.can_afford(
+                UnitTypeId.ORBITALCOMMAND
+        ):  # check if orbital is affordable
+            for cc in self.townhalls(UnitTypeId.COMMANDCENTER).idle:  # .idle filters idle command centers
+                self.do(cc(AbilityId.UPGRADETOORBITAL_ORBITALCOMMAND))
 
-        # Train more SCVs
-        if self.can_afford(UnitTypeId.SCV) and self.supply_workers < 16 and cc.is_idle:
-            self.do(cc.train(UnitTypeId.SCV), subtract_supply=True, subtract_cost=True)
+        # expand if we can afford and have less than 2 bases
+        if (
+                1 <= self.townhalls.amount < 2
+                and self.already_pending(UnitTypeId.COMMANDCENTER) == 0
+                and self.can_afford(UnitTypeId.COMMANDCENTER)
+        ):
+            # get_next_expansion returns the center of the mineral fields of the next nearby expansion
+            next_expo = await self.get_next_expansion()
+            # from the center of mineral fields, we need to find a valid place to place the command center
+            location = await self.find_placement(UnitTypeId.COMMANDCENTER, next_expo, placement_step=1)
+            if location:
+                # now we "select" (or choose) the nearest worker to that found location
+                w = self.select_build_worker(location)
+                if w and self.can_afford(UnitTypeId.COMMANDCENTER):
+                    # the worker will be commanded to build the command center
+                    self.do(w.build(UnitTypeId.COMMANDCENTER, location))
 
-        # Build more depots
-        elif (self.supply_left < (2 if self.structures(UnitTypeId.BARRACKS).amount < 3 else 4) and self.supply_used >= 14):
-            if self.can_afford(UnitTypeId.SUPPLYDEPOT) and self.already_pending(UnitTypeId.SUPPLYDEPOT) < 2:
-                target_depot_location = depot_placement_positions.pop()
-                await self.build(UnitTypeId.SUPPLYDEPOT, near=target_depot_location)
-        # Train marines
-        # print(f" raxs = {self.structures(UnitTypeId.BARRACKS)}")
-        # print(f" idle = {self.structures(UnitTypeId.BARRACKS).ready.idle}")
-        for rax in self.structures(UnitTypeId.BARRACKS).ready.idle:
-            if self.can_afford(UnitTypeId.MARINE):
-                self.do(rax.train(UnitTypeId.MARINE), subtract_supply=True, subtract_cost=True)
-                # print("got here")
+        # make up to 4 barracks if we can afford them
+        # check if we have a supply depot (tech requirement) before trying to make barracks
+        if (
+                self.structures.of_type(
+                    [UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED, UnitTypeId.SUPPLYDEPOTDROP]
+                ).ready.exists
+                and self.structures(UnitTypeId.BARRACKS).amount + self.already_pending(
+            UnitTypeId.BARRACKS) < 4
+                and self.can_afford(UnitTypeId.BARRACKS)
+        ):
+            ws = self.workers.gathering
+            if (
+                    ws and self.townhalls.exists
+            ):  # need to check if townhalls.amount > 0 because placement is based on townhall location
+                w = ws.furthest_to(ws.center)
+                # I chose placement_step 4 here so there will be gaps between barracks hopefully
+                loc = await self.find_placement(UnitTypeId.BARRACKS, self.townhalls.random.position,
+                                                     placement_step=4)
+                if loc:
+                    self.do(w.build(UnitTypeId.BARRACKS, loc))
 
-        # Send idle workers to gather minerals near command center
-        for scv in self.workers.idle:
-            self.do(scv.gather(self.mineral_field.closest_to(cc)))
+        # build refineries (on nearby vespene) when at least one barracks is in construction
+        if self.structures(UnitTypeId.BARRACKS).amount > 0 and self.already_pending(
+                UnitTypeId.REFINERY) < 1:
+            for th in self.townhalls:
+                vgs = self.vespene_geyser.closer_than(10, th)
+                for vg in vgs:
+                    if await self.can_place(UnitTypeId.REFINERY, vg.position) and self.can_afford(
+                            UnitTypeId.REFINERY):
+                        ws = self.workers.gathering
+                        if ws.exists:  # same condition as above
+                            w = ws.closest_to(vg)
+                            # caution: the target for the refinery has to be the vespene geyser, not its position!
+                            self.do(w.build(UnitTypeId.REFINERY, vg))
 
-        if self.structures(UnitTypeId.ENGINEERINGBAY).amount < 1:
-            if self.can_afford(UnitTypeId.ENGINEERINGBAY):
-                await self.build(UnitTypeId.ENGINEERINGBAY, near=cc.position.towards(self.game_info.map_center, 5))
+        # make scvs until 18, usually you only need 1:1 mineral:gas ratio for reapers, but if you don't lose any then you will need additional depots (mule income should take care of that)
+        # stop scv production when barracks is complete but we still have a command cender (priotize morphing to orbital command)
+        if (
+                self.can_afford(UnitTypeId.SCV)
+                and self.supply_left > 0
+                and self.workers.amount < 18
+                and (
+                self.structures(UnitTypeId.BARRACKS).ready.amount < 1
+                and self.townhalls(UnitTypeId.COMMANDCENTER).idle.exists
+                or self.townhalls(UnitTypeId.ORBITALCOMMAND).idle.exists
+        )
+        ):
+            for th in self.townhalls.idle:
+                self.do(th.train(UnitTypeId.SCV))
 
-    async def on_building_construction_started(self, unit: Unit):
-        print(f"Construction of building {unit} started at {unit.position}.")
+        # make reapers if we can afford them and we have supply remaining
+        if self.can_afford(UnitTypeId.REAPER) and self.supply_left > 0:
+            # loop through all idle barracks
+            for rax in self.structures(UnitTypeId.BARRACKS).idle:
+                self.do(rax.train(UnitTypeId.REAPER))
 
-    async def on_building_construction_complete(self, unit: Unit):
-        print(f"Construction of building {unit} completed at {unit.position}.")
+        # send workers to mine from gas
+        if self.iteration % 25 == 0:
+            await self.distribute_workers()
 
-    async def on_enemy_unit_entered_vision(self, unit: Unit):
-        print(f" {unit} entered vision at {unit.position}.")
+        # reaper micro
 
-    def draw_ramp_points(self):
-        for ramp in self.game_info.map_ramps:
-            for p in ramp.points:
-                h2 = self.get_terrain_z_height(p)
-                pos = Point3((p.x, p.y, h2))
-                color = Point3((255, 0, 0))
-                if p in ramp.upper:
-                    color = Point3((0, 255, 0))
-                if p in ramp.upper2_for_ramp_wall:
-                    color = Point3((0, 255, 255))
-                if p in ramp.lower:
-                    color = Point3((0, 0, 255))
-                self._client.debug_box2_out(pos, half_vertex_length=0.25, color=color)
-                # Identical to above:
-                # p0 = Point3((pos.x - 0.25, pos.y - 0.25, pos.z + 0.25))
-                # p1 = Point3((pos.x + 0.25, pos.y + 0.25, pos.z - 0.25))
-                # print(f"Drawing {p0} to {p1}")
-                # self._client.debug_box_out(p0, p1, color=color)
 
-    def draw_pathing_grid(self):
-        map_area = self._game_info.playable_area
-        for (b, a), value in np.ndenumerate(self._game_info.pathing_grid.data_numpy):
-            if value == 0:
-                continue
-            # Skip values outside of playable map area
-            if not (map_area.x <= a < map_area.x + map_area.width):
-                continue
-            if not (map_area.y <= b < map_area.y + map_area.height):
-                continue
-            p = Point2((a, b))
-            h2 = self.get_terrain_z_height(p)
-            pos = Point3((p.x, p.y, h2))
-            p0 = Point3((pos.x - 0.25, pos.y - 0.25, pos.z + 0.25)) + Point2((0.5, 0.5))
-            p1 = Point3((pos.x + 0.25, pos.y + 0.25, pos.z - 0.25)) + Point2((0.5, 0.5))
-            # print(f"Drawing {p0} to {p1}")
-            color = Point3((0, 255, 0))
-            self._client.debug_box_out(p0, p1, color=color)
+        # for r in self.unitsT(UnitTypeId.REAPER):
+        #     # move to random closest start location if no closest buildings have been seen
+        #     self.do(r.move(random.choice(self.enemy_start_locations)))
 
-    def draw_placement_grid(self):
-        map_area = self._game_info.playable_area
-        for (b, a), value in np.ndenumerate(self._game_info.placement_grid.data_numpy):
-            if value == 0:
-                continue
-            # Skip values outside of playable map area
-            if not (map_area.x <= a < map_area.x + map_area.width):
-                continue
-            if not (map_area.y <= b < map_area.y + map_area.height):
-                continue
-            p = Point2((a, b))
-            h2 = self.get_terrain_z_height(p)
-            pos = Point3((p.x, p.y, h2))
-            p0 = Point3((pos.x - 0.25, pos.y - 0.25, pos.z + 0.25)) + Point2((0.5, 0.5))
-            p1 = Point3((pos.x + 0.25, pos.y + 0.25, pos.z - 0.25)) + Point2((0.5, 0.5))
-            # print(f"Drawing {p0} to {p1}")
-            color = Point3((0, 255, 0))
-            self._client.debug_box_out(p0, p1, color=color)
+        # manage idle scvs, would be taken care by distribute workers aswell
+        if self.townhalls.exists:
+            for w in self.workers.idle:
+                th = self.townhalls.closest_to(w)
+                mfs = self.mineral_field.closer_than(10, th)
+                if mfs:
+                    mf = mfs.closest_to(w)
+                    self.do(w.gather(mf))
 
-    def draw_vision_blockers(self):
-        for p in self.game_info.vision_blockers:
-            h2 = self.get_terrain_z_height(p)
-            pos = Point3((p.x, p.y, h2))
-            p0 = Point3((pos.x - 0.25, pos.y - 0.25, pos.z + 0.25)) + Point2((0.5, 0.5))
-            p1 = Point3((pos.x + 0.25, pos.y + 0.25, pos.z - 0.25)) + Point2((0.5, 0.5))
-            # print(f"Drawing {p0} to {p1}")
-            color = Point3((255, 0, 0))
-            self._client.debug_box_out(p0, p1, color=color)
+        # manage orbital energy and drop mules
+        for oc in self.townhalls(UnitTypeId.ORBITALCOMMAND).filter(lambda x: x.energy >= 50):
+            mfs = self.mineral_field.closer_than(10, oc)
+            if mfs:
+                mf = max(mfs, key=lambda x: x.mineral_contents)
+                self.do(oc(AbilityId.CALLDOWNMULE_CALLDOWNMULE, mf))
 
-    def draw_visibility_pixelmap(self):
-        for (y, x), value in np.ndenumerate(self.state.visibility.data_numpy):
-            p = Point2((x, y))
-            h2 = self.get_terrain_z_height(p)
-            pos = Point3((p.x, p.y, h2))
-            p0 = Point3((pos.x - 0.25, pos.y - 0.25, pos.z + 0.25)) + Point2((0.5, 0.5))
-            p1 = Point3((pos.x + 0.25, pos.y + 0.25, pos.z - 0.25)) + Point2((0.5, 0.5))
-            # Red
-            color = Point3((255, 0, 0))
-            # If value == 2: show green (= we have vision on that point)
-            if value == 2:
-                color = Point3((0, 255, 0))
-            self._client.debug_box_out(p0, p1, color=color)
+        # when running out of mineral fields near command center, fly to next base with minerals
 
-    def draw_example(self):
-        # Draw green boxes around SCVs if they are gathering, yellow if they are returning cargo, red the rest
-        scv: Unit
-        for scv in self.workers:
-            pos = scv.position3d
-            p0 = Point3((pos.x - 0.25, pos.y - 0.25, pos.z + 0.25))
-            p1 = Point3((pos.x + 0.25, pos.y + 0.25, pos.z - 0.25))
-            # Red
-            color = Point3((255, 0, 0))
-            if scv.is_gathering:
-                color = Point3((0, 255, 0))
-            elif scv.is_returning:
-                color = Point3((255, 255, 0))
-            self._client.debug_box_out(p0, p1, color=color)
+    # helper functions
 
-        # Draw lines from structures to command center
-        if self.townhalls:
-            cc = self.townhalls[0]
-            p0 = cc.position3d
-            structure: Unit
-            for structure in self.structures:
-                if structure == cc:
-                    continue
-                p1 = structure.position3d
-                # Red
-                color = Point3((255, 0, 0))
-                self._client.debug_line_out(p0, p1, color=color)
+    # this checks if a ground unit can walk on a Point2 position
+    def inPathingGrid(self, pos):
+        # returns True if it is possible for a ground unit to move to pos - doesnt seem to work on ramps or near edges
+        assert isinstance(pos, (Point2, Point3, Unit))
+        pos = pos.position.to2.rounded
+        return self._game_info.pathing_grid[(pos)] != 0
 
-            # Draw text on barracks
-            if structure.type_id == UnitTypeId.BARRACKS:
-                # Blue
-                color = Point3((0, 0, 255))
-                pos = structure.position3d + Point3((0, 0, 0.5))
-                # TODO: Why is this text flickering
-                self._client.debug_text_world(text="MY RAX", pos=pos, color=color, size=16)
+    # stolen and modified from position.py
+    def neighbors4(self, position, distance=1):
+        p = position
+        d = distance
+        return {Point2((p.x - d, p.y)), Point2((p.x + d, p.y)), Point2((p.x, p.y - d)), Point2((p.x, p.y + d))}
 
-        # Draw text in top left of screen
-        self._client.debug_text_screen(text="Hello world!", pos=Point2((0, 0)), color=None, size=16)
-        self._client.debug_text_simple(text="Hello world2!")
+    # stolen and modified from position.py
+    def neighbors8(self, position, distance=1):
+        p = position
+        d = distance
+        return self.neighbors4(position, distance) | {
+            Point2((p.x - d, p.y - d)),
+            Point2((p.x - d, p.y + d)),
+            Point2((p.x + d, p.y - d)),
+            Point2((p.x + d, p.y + d)),
+        }
 
-    def draw_facing_units(self):
-        """ Draws green box on top of selected_unit2, if selected_unit2 is facing selected_unit1 """
-        selected_unit1: Unit
-        selected_unit2: Unit
-        red = Point3((255, 0, 0))
-        green = Point3((0, 255, 0))
-        for selected_unit1 in (self.units | self.structures).selected:
-            for selected_unit2 in self.units.selected:
-                if selected_unit1 == selected_unit2:
-                    continue
-                if selected_unit2.is_facing_unit(selected_unit1):
-                    self._client.debug_box2_out(selected_unit2, half_vertex_length=0.25, color=green)
-                else:
-                    self._client.debug_box2_out(selected_unit2, half_vertex_length=0.25, color=red)
+    # already pending function rewritten to only capture unitsT in queue and queued buildings
+    # the difference to bot_ai.py alredy_pending() is: it will not cover structures in construction
+    def already_pending(self, unit_type):
+        ability = self._game_data.units[unit_type.value].creation_ability
+        unitAttributes = self._game_data.units[unit_type.value].attributes
+
+        buildings_in_construction = self.structures(unit_type).not_ready
+        if 8 not in unitAttributes and any(o.ability == ability for w in (self.units) for o in w.orders):
+            return sum([o.ability == ability for w in (self.units - self.workers) for o in w.orders])
+        # following checks for unit production in a building queue, like queen, also checks if hatch is morphing to LAIR
+        elif any(o.ability.id == ability.id for w in (self.structures) for o in w.orders):
+            return sum([o.ability.id == ability.id for w in (self.structures) for o in w.orders])
+        # the following checks if a worker is about to start a construction (and for scvs still constructing if not checked for structures with same position as target)
+        elif any(o.ability == ability for w in self.workers for o in w.orders):
+            return (
+                    sum([o.ability == ability for w in self.workers for o in
+                         w.orders]) - buildings_in_construction.amount
+            )
+        elif any(egg.orders[0].ability == ability for egg in self.units(UnitTypeId.EGG)):
+            return sum([egg.orders[0].ability == ability for egg in self.units(UnitTypeId.EGG)])
+        return 0
+
+    # distribute workers function rewritten, the default distribute_workers() function did not saturate gas quickly enough
+    async def distribute_workers(self, performanceHeavy=True, onlySaturateGas=False):
+        # expansion_locations = self.expansion_locations
+        # owned_expansions = self.owned_expansions
+
+        mineralTags = [x.tag for x in self.mineral_field]
+        # gasTags = [x.tag for x in self.state.unitsT.vespene_geyser]
+        gas_buildingTags = [x.tag for x in self.gas_buildings]
+
+        workerPool = self.units & []
+        workerPoolTags = set()
+
+        # find all gas_buildings that have surplus or deficit
+        deficit_gas_buildings = {}
+        surplusgas_buildings = {}
+        for g in self.gas_buildings.filter(lambda x: x.vespene_contents > 0):
+            # only loop over gas_buildings that have still gas in them
+            deficit = g.ideal_harvesters - g.assigned_harvesters
+            if deficit > 0:
+                deficit_gas_buildings[g.tag] = {"unit": g, "deficit": deficit}
+            elif deficit < 0:
+                surplusWorkers = self.workers.closer_than(10, g).filter(
+                    lambda w: w not in workerPoolTags
+                              and len(w.orders) == 1
+                              and w.orders[0].ability.id in [AbilityId.HARVEST_GATHER]
+                              and w.orders[0].target in gas_buildingTags
+                )
+                # workerPool.extend(surplusWorkers)
+                for i in range(-deficit):
+                    if surplusWorkers.amount > 0:
+                        w = surplusWorkers.pop()
+                        workerPool.append(w)
+                        workerPoolTags.add(w.tag)
+                surplusgas_buildings[g.tag] = {"unit": g, "deficit": deficit}
+
+        # find all townhalls that have surplus or deficit
+        deficitTownhalls = {}
+        surplusTownhalls = {}
+        if not onlySaturateGas:
+            for th in self.townhalls:
+                deficit = th.ideal_harvesters - th.assigned_harvesters
+                if deficit > 0:
+                    deficitTownhalls[th.tag] = {"unit": th, "deficit": deficit}
+                elif deficit < 0:
+                    surplusWorkers = self.workers.closer_than(10, th).filter(
+                        lambda w: w.tag not in workerPoolTags
+                                  and len(w.orders) == 1
+                                  and w.orders[0].ability.id in [AbilityId.HARVEST_GATHER]
+                                  and w.orders[0].target in mineralTags
+                    )
+                    # workerPool.extend(surplusWorkers)
+                    for i in range(-deficit):
+                        if surplusWorkers.amount > 0:
+                            w = surplusWorkers.pop()
+                            workerPool.append(w)
+                            workerPoolTags.add(w.tag)
+                    surplusTownhalls[th.tag] = {"unit": th, "deficit": deficit}
+
+            if all(
+                    [
+                        len(deficit_gas_buildings) == 0,
+                        len(surplusgas_buildings) == 0,
+                        len(surplusTownhalls) == 0 or deficitTownhalls == 0,
+                    ]
+            ):
+                # cancel early if there is nothing to balance
+                return
+
+        # check if deficit in gas less or equal than what we have in surplus, else grab some more workers from surplus bases
+        deficitGasCount = sum(
+            gasInfo["deficit"] for gasTag, gasInfo in deficit_gas_buildings.items() if gasInfo["deficit"] > 0
+        )
+        surplusCount = sum(
+            -gasInfo["deficit"] for gasTag, gasInfo in surplusgas_buildings.items() if gasInfo["deficit"] < 0
+        )
+        surplusCount += sum(
+            -thInfo["deficit"] for thTag, thInfo in surplusTownhalls.items() if thInfo["deficit"] < 0)
+
+        if deficitGasCount - surplusCount > 0:
+            # grab workers near the gas who are mining minerals
+            for gTag, gInfo in deficit_gas_buildings.items():
+                if workerPool.amount >= deficitGasCount:
+                    break
+                workersNearGas = self.workers.closer_than(10, gInfo["unit"]).filter(
+                    lambda w: w.tag not in workerPoolTags
+                              and len(w.orders) == 1
+                              and w.orders[0].ability.id in [AbilityId.HARVEST_GATHER]
+                              and w.orders[0].target in mineralTags
+                )
+                while workersNearGas.amount > 0 and workerPool.amount < deficitGasCount:
+                    w = workersNearGas.pop()
+                    workerPool.append(w)
+                    workerPoolTags.add(w.tag)
+
+        # now we should have enough workers in the pool to saturate all gases, and if there are workers left over, make them mine at townhalls that have mineral workers deficit
+        for gTag, gInfo in deficit_gas_buildings.items():
+            if performanceHeavy:
+                # sort furthest away to closest (as the pop() function will take the last element)
+                workerPool.sort(key=lambda x: x.distance_to(gInfo["unit"]), reverse=True)
+            for i in range(gInfo["deficit"]):
+                if workerPool.amount > 0:
+                    w = workerPool.pop()
+                    if len(w.orders) == 1 and w.orders[0].ability.id in [AbilityId.HARVEST_RETURN]:
+                        self.do(w.gather(gInfo["unit"], queue=True))
+                    else:
+                        self.do(w.gather(gInfo["unit"]))
+
+        if not onlySaturateGas:
+            # if we now have left over workers, make them mine at bases with deficit in mineral workers
+            for thTag, thInfo in deficitTownhalls.items():
+                if performanceHeavy:
+                    # sort furthest away to closest (as the pop() function will take the last element)
+                    workerPool.sort(key=lambda x: x.distance_to(thInfo["unit"]), reverse=True)
+                for i in range(thInfo["deficit"]):
+                    if workerPool.amount > 0:
+                        w = workerPool.pop()
+                        mf = self.mineral_field.closer_than(10, thInfo["unit"]).closest_to(w)
+                        if len(w.orders) == 1 and w.orders[0].ability.id in [AbilityId.HARVEST_RETURN]:
+                            self.do(w.gather(mf, queue=True))
+                        else:
+                            self.do(w.gather(mf))
 
 def main():
     map = random.choice(
@@ -309,7 +429,6 @@ def main():
             'HonorgroundsLE',
             'KairosJunctionLE',
             'KingsCoveLE',
-            'Ladder2019Season3',
             'NewkirkPrecinctTE',
             'NewRepugnancyLE',
             'PaladinoTerminalLE',
@@ -323,13 +442,17 @@ def main():
 
         ]
     )
-    # map = "ParaSiteLE"
+
+    map = "AbyssalReefLE"
     sc2.run_game(
         sc2.maps.get(map),
         [Bot(Race.Terran, PickleRick(debug = True)), Computer(Race.Zerg, Difficulty.Easy)],
         realtime=False,
+
         # sc2_version="4.10.1",
     )
 
 if __name__ == "__main__":
-    main()
+    for i in range(5):
+        print(f"i = {i}")
+        main()
