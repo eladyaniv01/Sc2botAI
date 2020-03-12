@@ -1,6 +1,8 @@
 import os
 import sys
 
+import math
+from math import atan2,degrees
 from sc2.unit import Unit
 
 from Sc2botAI.settings import PROJECT_DIR
@@ -31,6 +33,7 @@ class BaseBot(sc2.BotAI):
         self.debug_manager = DebugManager(ai=self)
         self.map_manager = MapManager(ai=self)
         self._solved = False
+        # self.drivers = [ReaperDriver(ai=self)]
         self.drivers = [ra]
         self.iteration = 0
 
@@ -54,6 +57,26 @@ class BaseBot(sc2.BotAI):
 
             async def on_enemy_unit_entered_vision(self, unit: Unit):
                 print(f" {unit} entered vision at {unit.position}.")
+
+    def _convert_to_tuple(self, p0):
+        if isinstance(p0, Point2):
+            return p0.x, p0.y
+        if isinstance(p0, Point3):
+            return p0.x, p0.y
+        return p0
+
+    def solve_angle(self, p0, p1):
+        p0, p1 = self._convert_to_tuple(p0), self._convert_to_tuple(p1)
+        change_in_x = p1[0] - p0[0]
+        change_in_y = p1[1] - p0[1]
+        return atan2(change_in_y, change_in_x) #add degrees() around  if you want your answer in degrees
+
+    def distance_math_hypot(self, p0, p1):
+        p0, p1 = self._convert_to_tuple(p0), self._convert_to_tuple(p1)
+        return math.hypot(p0[0] - p1[0], p0[1] - p1[1])
+
+    def calculate_angle_distance(self, p0, p1):
+        return self.solve_angle(p0, p1), self.distance_math_hypot(p0, p1)
 
     def __repr__(self):
         return f'<BaseBot: {str(self.created_at)}>'

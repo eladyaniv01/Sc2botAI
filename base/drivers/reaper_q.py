@@ -1,6 +1,7 @@
 import random
 import math
 
+
 import numpy as np
 import pandas as pd
 import random
@@ -13,11 +14,10 @@ from sc2.units import Units
 import enum
 from qlearningtable import QLearningTable
 import enum
+from Sc2botAI.base.drivers.BaseDriver import BaseDriver
+QFILE = "reaper_q_driver.pickle"
 
-# TODO Driver per unit not per unit type - need to implement lock and synchronize the qtables of each learning agent into one
-# TODO some sort of unit cache manager for assigning drivers
 # TODO generic training map with adjustable configuration (ie spawn units in middle,  spawn structures,  rules)
-
 # TODO move qlearning table to a generic place for others qagents to import from
 # Stolen from https://github.com/MorvanZhou/Reinforcement-learning-with-tensorflow
 class QLearningTable:
@@ -55,12 +55,11 @@ class QLearningTable:
             # append new state to q table
             self.q_table = self.q_table.append(
                 pd.Series(
-                    [0]*len(self.actions),
+                    [0] * len(self.actions),
                     index=self.q_table.columns,
                     name=state,
                 )
             )
-
 
 
 class Policy(enum.Enum):
@@ -75,49 +74,49 @@ class GridMover:
         self.loc = unit.position
 
     def move_right(self):
-        step = Point2((1,0))
+        step = Point2((1, 0))
         self.ai.do(self.unit.smart(self.loc.offset(step)))
         self.loc = self.loc.offset(step)
         return True
 
     def move_left(self):
-        step = Point2((-1,0))
+        step = Point2((-1, 0))
         self.ai.do(self.unit.smart(self.loc.offset(step)))
         self.loc = self.loc.offset(step)
         return True
 
     def move_up(self):
-        step = Point2((0,1))
+        step = Point2((0, 1))
         self.ai.do(self.unit.smart(self.loc.offset(step)))
         self.loc = self.loc.offset(step)
         return True
 
     def move_up_right(self):
-        step = Point2((1,1))
+        step = Point2((1, 1))
         self.ai.do(self.unit.smart(self.loc.offset(step)))
         self.loc = self.loc.offset(step)
         return True
 
     def move_up_left(self):
-        step = Point2((-1,1))
+        step = Point2((-1, 1))
         self.ai.do(self.unit.smart(self.loc.offset(step)))
         self.loc = self.loc.offset(step)
         return True
 
     def move_down(self):
-        step = Point2((0,-1))
+        step = Point2((0, -1))
         self.ai.do(self.unit.smart(self.loc.offset(step)))
         self.loc = self.loc.offset(step)
         return True
 
     def move_down_right(self):
-        step = Point2((1,-1))
+        step = Point2((1, -1))
         self.ai.do(self.unit.smart(self.loc.offset(step)))
         self.loc = self.loc.offset(step)
         return True
 
     def move_down_left(self):
-        step = Point2((-1,-1))
+        step = Point2((-1, -1))
         self.ai.do(self.unit.smart(self.loc.offset(step)))
         self.loc = self.loc.offset(step)
         return True
@@ -126,7 +125,7 @@ class GridMover:
         if not closest:
             self.ai.do(self.unit.move(random.choice(self.ai.enemy_start_locations)))
             return True
-        if isinstance(closest,Units):
+        if isinstance(closest, Units):
             closest = closest.closest_to(self.unit)
 
         self.ai.do(self.unit.attack(closest))
@@ -141,14 +140,11 @@ class GridMover:
     def attack_throw_grenade(self, weakest=None, closest=None):
         target = weakest or closest
 
-        if isinstance(target,Units):
+        if isinstance(target, Units):
             target = target.closest_to(self.unit)
 
         self.ai.do(self.unit(AbilityId.KD8CHARGE_KD8CHARGE, target))
         return True
-
-
-
 
 
 LOST_REAPER_PENALTY = -3
@@ -156,8 +152,6 @@ STRUCTUE_KILL_REWARD = 1
 UNIT_KILL_REWARD = 0.7
 DAMAGE_REWARD = 0.1
 DAMAGE_PENALTY = -0.05
-
-
 
 ACTION_DO_NOTHING = 'donothing'
 ACTION_MOVE_UP = 'moveup'
@@ -187,11 +181,13 @@ smart_actions = [
     ACTION_ATTACK_THROW_GRENADE,
 
 ]
-class ReaperQAgent:
-    def __init__(self, ai = None, qtable = None):
-        super().__init__()
-        self.ai = ai
+
+
+class ReaperQAgent(BaseDriver):
+    def __init__(self, ai=None, qtable=None, unit=None):
+        super().__init__(ai=ai)
         self.qlearn = qtable or QLearningTable(actions=list(range(len(smart_actions))))
+        self.unit = unit
         self.condition = UnitTypeId.REAPER
         self.lost_reapers = 0
         self.last_killed_value_units = 0
@@ -204,17 +200,15 @@ class ReaperQAgent:
         self.action_space_cache = []
         self.policy = Policy.Passive
 
-
-
-    def do_(self, unit, smart_action, enemies_can_attack = None):
+    async def do_(self, unit, smart_action, enemies_can_attack=None):
         closest = enemies_can_attack.sorted(lambda x: x.distance_to(unit))
         weakest = enemies_can_attack.sorted(lambda x: x.health)
         reaper_grenade_range = self.ai._game_data.abilities[AbilityId.KD8CHARGE_KD8CHARGE.value]._proto.cast_range
         enemy_ground_units_in_grenade_range = enemies_can_attack.filter(
             lambda u: not u.is_structure
-                         and not u.is_flying
-                         and u.type_id not in {UnitTypeId.LARVA, UnitTypeId.EGG}
-                         and u.distance_to(unit) < reaper_grenade_range
+                      and not u.is_flying
+                      and u.type_id not in {UnitTypeId.LARVA, UnitTypeId.EGG}
+                      and u.distance_to(unit) < reaper_grenade_range
         )
         controller = GridMover(self.ai, unit)
         if smart_action == ACTION_DO_NOTHING:
@@ -247,38 +241,39 @@ class ReaperQAgent:
         if smart_action == ACTION_ATTACK_CLOSEST_ENEMY and closest:
             controller.attack(closest)
             return True
-        elif not closest: # no closest in sight
+        elif not closest:  # no closest in sight
             self.ai.do(unit.move(random.choice(self.ai.enemy_start_locations)))
             return True
 
         if smart_action == ACTION_ATTACK_WEAKEST_ENEMY and weakest:
             controller.attack(weakest)
             return True
-        elif not weakest: # no weakest in sight
+        elif not weakest:  # no weakest in sight
             self.ai.do(unit.move(random.choice(self.ai.enemy_start_locations)))
             return True
 
         if smart_action == ACTION_ATTACK_THROW_GRENADE and (weakest or closest):
             controller.attack_throw_grenade(weakest, closest)
             return True
-        else: # no weakest in sight
+        else:  # no weakest in sight
             self.ai.do(unit.move(random.choice(self.ai.enemy_start_locations)))
             return True
-
-
 
     async def execute(self):
         lost_reaper = False
         if not len(self.ai.units(UnitTypeId.REAPER)):
             return True
         for r in self.ai.units(UnitTypeId.REAPER):
-            r.move
+            # hack,  if you are safe, and injured  heal up dont look for enemies
+            if self.is_safe_ground(r) and r.health_percentage < 0.8:
+                continue
 
             enemies = self.ai.enemy_units | self.ai.enemy_structures
             enemy_close = enemies.filter(lambda unit: unit.can_attack_ground and unit.distance_to(r) < 25)
             if not enemy_close:
                 self.policy = Policy.Offensive
-                loc = random.choice(self.ai.enemy_start_locations).towards_with_random_angle(self.ai.game_info.map_center,distance=10)
+                loc = random.choice(self.ai.enemy_start_locations).towards_with_random_angle(
+                    self.ai.game_info.map_center, distance=10)
                 self.ai.do(r.move(loc))
                 continue
             friendlies = self.ai.units.filter(lambda unit: unit.distance_to(r) < 6)
@@ -293,31 +288,43 @@ class ReaperQAgent:
                 # print(f"Damage Dealt : {damage_dealt}")
                 # print(f"Enemies died :  {killed_value_units}")
 
-
-
             self.reaper_count = len(self.ai.units(UnitTypeId.REAPER))
+            enemy_d = {}
+            for i in range(5):
+                enemy_d[i] = -99, -99
             try:
-                closest_enemy = enemies_can_attack.closest_to(r)
-                closest_enemy_id = closest_enemy.type_id.value
+                closest_5_enemies = enemies_can_attack[:5]
+                for i in range(len(closest_5_enemies)):
+                    enemy = enemies_can_attack[i]
+                    enemy_angle_to_me, enemy_distance_to_me = self.ai.calculate_angle_distance(r.position_tuple,
+                                                                                               enemy.position_tuple)
+                    enemy_d[i] = enemy.type_id.value, enemy_angle_to_me * enemy_distance_to_me
             except Exception as e:
-                closest_enemy_id = -99
+                pass
                 # print("closest closest exception")
                 # print(e)
 
-            current_state = np.zeros(20)
-            current_state[0] = self.reaper_count
-            current_state[1] = self.lost_reapers
-            current_state[2] = self.ai.state.score.killed_minerals_army
-            current_state[3] = self.ai.state.score.killed_minerals_economy
-            current_state[4] = self.ai.state.score.killed_minerals_technology
-            current_state[5] = self.ai.state.score.killed_vespene_army
-            current_state[6] = self.ai.state.score.total_damage_taken_life
-            current_state[7] = self.ai.state.score.total_healed_life
-            current_state[8] = closest_enemy_id
-            current_state[9] = len(enemies)
-            current_state[10] = len(enemies_can_attack)
-            current_state[11] = len(friendlies)
-            current_state[12] = self.ai.state.score.killed_value_units
+            current_state = np.zeros(40)
+            """
+            TODO 5 closest enemies :
+            TYPE ( worker , queen, is_flying, is_ranged , distance_to_me, angle_to_me
+            NUMBER OF NEARBY FRIENDLIES RADIUS 10 ?
+            
+            
+            """
+            for i in range(0, 10, 2):
+                enemy_idx = int(i/2)
+                current_state[i] = enemy_d[enemy_idx][0]
+                current_state[i+1] = enemy_d[enemy_idx][1]
+            current_state[30] = self.reaper_count
+            current_state[31] = self.ai.state.score.killed_minerals_army
+            current_state[32] = self.ai.state.score.killed_minerals_economy
+            current_state[33] = self.ai.state.score.killed_minerals_technology
+            current_state[34] = self.ai.state.score.killed_vespene_army
+            current_state[35] = self.ai.state.score.total_damage_taken_life
+            current_state[36] = self.ai.state.score.total_healed_life
+            current_state[37] = len(friendlies)
+            current_state[38] = self.ai.state.score.killed_value_units
 
             if self.previous_action is not None:
                 reward = 0
@@ -341,17 +348,17 @@ class ReaperQAgent:
             if self.ai.iteration % 100 == 0:
                 try:
                     import pickle
-                    qfile = "reaper_q_driver.pickle"
+                    qfile = QFILE
                     with open(qfile, "wb") as f:
                         pickle.dump(self.qlearn, f)
                 except Exception as e:
                     print(e)
             if self.ai.iteration % 500 == 0:
+                print("Saved")
                 with open("report.txt", "a") as f:
                     print(f"iteration : {self.ai.iteration}")
                     print(f" {self.lost_reapers} / {damage_dealt} / {killed_value_units}")
                     f.write(f"iteration : {self.ai.iteration}")
                     f.write(f" rd:{self.lost_reapers} / dd:{damage_dealt}, ed:{killed_value_units}\n")
 
-
-            self.do_(r, smart_action,enemies_can_attack)
+            await self.do_(r, smart_action, enemies_can_attack)

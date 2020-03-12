@@ -2,7 +2,7 @@ from collections import namedtuple
 from typing import Union
 
 from Sc2botAI.base.Expansion import Expansion
-from Sc2botAI.base.RampExt import  RampExt
+from Sc2botAI.base.RampExt import RampExt
 from sc2.position import Point3, Point2
 
 # ExpansionTuple = namedtuple("Expansion", ["name", "coords", "resources", "ramp"])
