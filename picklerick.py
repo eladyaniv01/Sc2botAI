@@ -63,58 +63,58 @@ class PickleRick(BaseBot):
 
         # training block
 
-        enemy_units = self.enemy_units
-        enemy_workers = self.enemy_units(UnitTypeId.DRONE)
-        lings = self.enemy_units(UnitTypeId.ZERGLING)
-        queens = self.enemy_units(UnitTypeId.QUEEN)
-        lings = lings | queens
-        good_units = enemy_workers | lings
-
-        bad_units = [x for x in enemy_units if x not in good_units]
-        bad_flying = [x for x in bad_units if (x.is_flying and x.type_id != UnitTypeId.OVERLORD)]
-        for u in bad_flying:
-            await self.client.debug_kill_unit(u)
-
-        if self.iteration % 500 == 0:
-            for u in bad_units:
-                await self.client.debug_kill_unit(u)
-        # if self.iteration == 2502:
-        #     await self.client.leave()
-        if not self.units(UnitTypeId.THOR):
-            await self.client.debug_create_unit(
-                [[UnitTypeId.THOR, 1, self.main_base_ramp.depot_in_middle, 1]])
-
-        if not self.units(UnitTypeId.REAPER):
-
-            n = 1
-            loc = random.choice(self.enemy_start_locations).towards_with_random_angle(self.game_info.map_center,distance=50)
-            loc2 = random.choice(self.enemy_start_locations).towards_with_random_angle(self.game_info.map_center,distance=50)
-            loc3 = random.choice(self.enemy_start_locations).towards_with_random_angle(self.game_info.map_center,distance=50)
-            if self.iteration > 175:
-                n = 1
-                await self.client.debug_create_unit(
-                    [[UnitTypeId.REAPER, 1, loc2, 1]])
-            if self.iteration > 325:
-                n = 2
-                await self.client.debug_create_unit(
-                    [[UnitTypeId.REAPER, 1, loc3, 1]])
-            if self.iteration > 650:
-                n = 3
-                await self.client.debug_create_unit(
-                    [[UnitTypeId.REAPER, 1, loc2, 1]])
-            if self.iteration > 900:
-                n = 4
-                await self.client.debug_create_unit(
-                    [[UnitTypeId.REAPER, 2, loc, 1]])
-
-
-            return True
-
-            if not self.enemy_units(UnitTypeId.QUEEN):
-                await self.client.debug_create_unit(
-                    [[UnitTypeId.QUEEN, 1, random.choice(self.enemy_start_locations), 2]])
-
-        return True
+        # enemy_units = self.enemy_units
+        # enemy_workers = self.enemy_units(UnitTypeId.DRONE)
+        # lings = self.enemy_units(UnitTypeId.ZERGLING)
+        # queens = self.enemy_units(UnitTypeId.QUEEN)
+        # lings = lings | queens
+        # good_units = enemy_workers | lings
+        #
+        # bad_units = [x for x in enemy_units if x not in good_units]
+        # bad_flying = [x for x in bad_units if (x.is_flying and x.type_id != UnitTypeId.OVERLORD)]
+        # for u in bad_flying:
+        #     await self.client.debug_kill_unit(u)
+        #
+        # if self.iteration % 500 == 0:
+        #     for u in bad_units:
+        #         await self.client.debug_kill_unit(u)
+        # # if self.iteration == 2502:
+        # #     await self.client.leave()
+        # if not self.units(UnitTypeId.THOR):
+        #     await self.client.debug_create_unit(
+        #         [[UnitTypeId.THOR, 1, self.main_base_ramp.depot_in_middle, 1]])
+        #
+        # if not self.units(UnitTypeId.REAPER):
+        #
+        #     n = 1
+        #     loc = random.choice(self.enemy_start_locations).towards_with_random_angle(self.game_info.map_center,distance=50)
+        #     loc2 = random.choice(self.enemy_start_locations).towards_with_random_angle(self.game_info.map_center,distance=50)
+        #     loc3 = random.choice(self.enemy_start_locations).towards_with_random_angle(self.game_info.map_center,distance=50)
+        #     if self.iteration > 175:
+        #         n = 1
+        #         await self.client.debug_create_unit(
+        #             [[UnitTypeId.REAPER, 1, loc2, 1]])
+        #     if self.iteration > 325:
+        #         n = 2
+        #         await self.client.debug_create_unit(
+        #             [[UnitTypeId.REAPER, 1, loc3, 1]])
+        #     if self.iteration > 650:
+        #         n = 3
+        #         await self.client.debug_create_unit(
+        #             [[UnitTypeId.REAPER, 1, loc2, 1]])
+        #     if self.iteration > 900:
+        #         n = 4
+        #         await self.client.debug_create_unit(
+        #             [[UnitTypeId.REAPER, 2, loc, 1]])
+        #
+        #
+        #     return True
+        #
+        #     if not self.enemy_units(UnitTypeId.QUEEN):
+        #         await self.client.debug_create_unit(
+        #             [[UnitTypeId.QUEEN, 1, random.choice(self.enemy_start_locations), 2]])
+        #
+        # return True
 
         if (self.supply_left < 5 
                 and self.townhalls.exists
@@ -447,12 +447,12 @@ def main():
     sc2.run_game(
         sc2.maps.get(map),
         [Bot(Race.Terran, PickleRick(debug = True)), Computer(Race.Zerg, Difficulty.Easy)],
-        realtime=False,
+        realtime=True,
 
         # sc2_version="4.10.1",
     )
 
 if __name__ == "__main__":
-    for i in range(5):
+    for i in range(1):
         print(f"i = {i}")
         main()

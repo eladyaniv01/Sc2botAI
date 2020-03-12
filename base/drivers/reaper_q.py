@@ -11,8 +11,56 @@ from sc2.position import Point2, Point3
 from sc2.unit import Unit
 from sc2.units import Units
 import enum
-
+from qlearningtable import QLearningTable
 import enum
+
+# TODO Driver per unit not per unit type - need to implement lock and synchronize the qtables of each learning agent into one
+# TODO some sort of unit cache manager for assigning drivers
+# TODO generic training map with adjustable configuration (ie spawn units in middle,  spawn structures,  rules)
+
+# TODO move qlearning table to a generic place for others qagents to import from
+# Stolen from https://github.com/MorvanZhou/Reinforcement-learning-with-tensorflow
+class QLearningTable:
+    def __init__(self, actions, learning_rate=0.01, reward_decay=0.9, e_greedy=0.9):
+        self.actions = actions  # a list
+        self.lr = learning_rate
+        self.gamma = reward_decay
+        self.epsilon = e_greedy
+        self.q_table = pd.DataFrame(columns=self.actions, dtype=np.float64)
+
+    def choose_action(self, observation):
+        self.check_state_exist(observation)
+        # action selection
+        if np.random.uniform() < self.epsilon:
+            # choose best action
+            state_action = self.q_table.loc[observation, :]
+            # some actions may have the same value, randomly choose on in these actions
+            action = np.random.choice(state_action[state_action == np.max(state_action)].index)
+        else:
+            # choose random action
+            action = np.random.choice(self.actions)
+        return action
+
+    def learn(self, s, a, r, s_):
+        self.check_state_exist(s_)
+        q_predict = self.q_table.loc[s, a]
+        if s_ != 'terminal':
+            q_target = r + self.gamma * self.q_table.loc[s_, :].max()  # next state is not terminal
+        else:
+            q_target = r  # next state is terminal
+        self.q_table.loc[s, a] += self.lr * (q_target - q_predict)  # update
+
+    def check_state_exist(self, state):
+        if state not in self.q_table.index:
+            # append new state to q table
+            self.q_table = self.q_table.append(
+                pd.Series(
+                    [0]*len(self.actions),
+                    index=self.q_table.columns,
+                    name=state,
+                )
+            )
+
 
 
 class Policy(enum.Enum):
@@ -108,48 +156,6 @@ STRUCTUE_KILL_REWARD = 1
 UNIT_KILL_REWARD = 0.7
 DAMAGE_REWARD = 0.1
 DAMAGE_PENALTY = -0.05
-
-# Stolen from https://github.com/MorvanZhou/Reinforcement-learning-with-tensorflow
-class QLearningTable:
-    def __init__(self, actions, learning_rate=0.01, reward_decay=0.9, e_greedy=0.9):
-        self.actions = actions  # a list
-        self.lr = learning_rate
-        self.gamma = reward_decay
-        self.epsilon = e_greedy
-        self.q_table = pd.DataFrame(columns=self.actions, dtype=np.float64)
-
-    def choose_action(self, observation):
-        self.check_state_exist(observation)
-        # action selection
-        if np.random.uniform() < self.epsilon:
-            # choose best action
-            state_action = self.q_table.loc[observation, :]
-            # some actions may have the same value, randomly choose on in these actions
-            action = np.random.choice(state_action[state_action == np.max(state_action)].index)
-        else:
-            # choose random action
-            action = np.random.choice(self.actions)
-        return action
-
-    def learn(self, s, a, r, s_):
-        self.check_state_exist(s_)
-        q_predict = self.q_table.loc[s, a]
-        if s_ != 'terminal':
-            q_target = r + self.gamma * self.q_table.loc[s_, :].max()  # next state is not terminal
-        else:
-            q_target = r  # next state is terminal
-        self.q_table.loc[s, a] += self.lr * (q_target - q_predict)  # update
-
-    def check_state_exist(self, state):
-        if state not in self.q_table.index:
-            # append new state to q table
-            self.q_table = self.q_table.append(
-                pd.Series(
-                    [0]*len(self.actions),
-                    index=self.q_table.columns,
-                    name=state,
-                )
-            )
 
 
 
@@ -266,6 +272,7 @@ class ReaperQAgent:
         if not len(self.ai.units(UnitTypeId.REAPER)):
             return True
         for r in self.ai.units(UnitTypeId.REAPER):
+            r.move
 
             enemies = self.ai.enemy_units | self.ai.enemy_structures
             enemy_close = enemies.filter(lambda unit: unit.can_attack_ground and unit.distance_to(r) < 25)
