@@ -20,7 +20,7 @@ NO_MINERAL_FLOAT_REWARD = 0.5
 NO_MINERAL_FLOAT_PENALTY = -0.5
 GREATER_FOOD_REWARD = 0.4
 GREATER_FOOD_PENALTY = -0.7
-BREAK_ITERATION = 1000
+BREAK_ITERATION = 2000
 
 class Trainer(BaseBot):
     def __init__(self, debug = False):
@@ -161,6 +161,6 @@ def main():
     )
 
 if __name__ == "__main__":
-    for i in range(10):
+    for i in range(20):
         print(f"i = {i}")
         main()

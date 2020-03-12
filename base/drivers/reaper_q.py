@@ -148,8 +148,8 @@ class GridMover:
 
 
 LOST_REAPER_PENALTY = -3
-STRUCTUE_KILL_REWARD = 1
-UNIT_KILL_REWARD = 0.7
+STRUCTUE_KILL_REWARD = 6
+UNIT_KILL_REWARD = 2
 DAMAGE_REWARD = 0.1
 DAMAGE_PENALTY = -0.05
 
@@ -199,6 +199,7 @@ class ReaperQAgent(BaseDriver):
         self.previous_state = None
         self.action_space_cache = []
         self.policy = Policy.Passive
+        self.iteration_state = 0
 
     async def do_(self, unit, smart_action, enemies_can_attack=None):
         closest = enemies_can_attack.sorted(lambda x: x.distance_to(unit))
@@ -263,6 +264,7 @@ class ReaperQAgent(BaseDriver):
         lost_reaper = False
         if not len(self.ai.units(UnitTypeId.REAPER)):
             return True
+        self.iteration_state = 0 # 0 started 1 dont do more
         for r in self.ai.units(UnitTypeId.REAPER):
             # hack,  if you are safe, and injured  heal up dont look for enemies
             if self.is_safe_ground(r) and r.health_percentage < 0.8:
@@ -281,13 +283,10 @@ class ReaperQAgent(BaseDriver):
             structures_dmg = self.ai.state.score.killed_value_structures
             damage_dealt = self.ai.state.score.total_damage_dealt_life
             enemies_can_attack = enemies.filter(lambda unit: unit.can_attack_ground)
-            if len(self.ai.units(UnitTypeId.REAPER)) < self.reaper_count:
-                lost_reaper = True
-                self.lost_reapers += (self.reaper_count + len(self.ai.units(UnitTypeId.REAPER)))
-                # print(f"Total reapers died :{self.lost_reapers}")
-                # print(f"Damage Dealt : {damage_dealt}")
-                # print(f"Enemies died :  {killed_value_units}")
-
+            lost_reapers = self.ai.state.score.lost_minerals_army + self.ai.state.score.lost_vespene_army
+            if self.lost_reapers < lost_reapers:
+                self.lost_reapers = True
+            self.lost_reapers = lost_reapers
             self.reaper_count = len(self.ai.units(UnitTypeId.REAPER))
             enemy_d = {}
             for i in range(5):
@@ -304,7 +303,7 @@ class ReaperQAgent(BaseDriver):
                 # print("closest closest exception")
                 # print(e)
 
-            current_state = np.zeros(40)
+            current_state = np.zeros(35)
             """
             TODO 5 closest enemies :
             TYPE ( worker , queen, is_flying, is_ranged , distance_to_me, angle_to_me
@@ -316,15 +315,8 @@ class ReaperQAgent(BaseDriver):
                 enemy_idx = int(i/2)
                 current_state[i] = enemy_d[enemy_idx][0]
                 current_state[i+1] = enemy_d[enemy_idx][1]
-            current_state[30] = self.reaper_count
-            current_state[31] = self.ai.state.score.killed_minerals_army
-            current_state[32] = self.ai.state.score.killed_minerals_economy
-            current_state[33] = self.ai.state.score.killed_minerals_technology
-            current_state[34] = self.ai.state.score.killed_vespene_army
-            current_state[35] = self.ai.state.score.total_damage_taken_life
-            current_state[36] = self.ai.state.score.total_healed_life
-            current_state[37] = len(friendlies)
-            current_state[38] = self.ai.state.score.killed_value_units
+            current_state[30] = r.health_percentage
+            current_state[31] = len(friendlies)
 
             if self.previous_action is not None:
                 reward = 0
@@ -345,20 +337,27 @@ class ReaperQAgent(BaseDriver):
             self.previous_state = current_state
             self.previous_action = rl_action
 
-            if self.ai.iteration % 100 == 0:
+            if self.lost_reapers == 0:
+                lost_reapers = 1
+
+
+            print(f"\riteration : {self.ai.iteration}, Score : {killed_value_units / lost_reapers}",end="")
+            if self.ai.iteration % 200 == 0 or self.ai.iteration % 199 == 0 or self.ai.iteration % 198 == 0 and self.iteration_state == 0:
+                self.iteration_state = 1
                 try:
                     import pickle
-                    qfile = QFILE
-                    with open(qfile, "wb") as f:
-                        pickle.dump(self.qlearn, f)
+                    from threading import Lock
+                    with Lock():
+                        qfile = QFILE
+                        with open(qfile, "wb") as f:
+                            pickle.dump(self.qlearn, f)
                 except Exception as e:
                     print(e)
-            if self.ai.iteration % 500 == 0:
-                print("Saved")
-                with open("report.txt", "a") as f:
-                    print(f"iteration : {self.ai.iteration}")
-                    print(f" {self.lost_reapers} / {damage_dealt} / {killed_value_units}")
-                    f.write(f"iteration : {self.ai.iteration}")
-                    f.write(f" rd:{self.lost_reapers} / dd:{damage_dealt}, ed:{killed_value_units}\n")
 
+
+                if self.ai.iteration % 500 == 0 or self.ai.iteration % 499 == 0 or self.ai.iteration % 498 == 0:
+                    with open("report.txt", "a") as f:
+                        # f.write(f"iteration : {self.ai.iteration}")
+                        f.write(f"{killed_value_units/lost_reapers},")
+            self.ai.state.score.lost_minerals_army
             await self.do_(r, smart_action, enemies_can_attack)
