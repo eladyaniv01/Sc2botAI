@@ -69,8 +69,8 @@ class ReaperDriver(BaseDriver):
                     continue  # continue for loop, dont execute any of the following
             enemy_threats_very_close = enemies.filter(lambda unit: unit.can_attack_ground and unit.distance_to(r) < 3.5)
             queens_close = enemy_threats_very_close.filter(lambda unit: unit.type_id == UnitTypeId.QUEEN)
-            if len(queens_close) > 0:
-                print("Queen is close")
+            # if len(queens_close) > 0:
+            #     print("Queen is close")
             if r.weapon_cooldown != 0 and queens_close:
                 if self.ai.iteration % 4 == 0:
                     closest_queen = queens_close.closest_to(r)
@@ -130,6 +130,9 @@ class ReaperDriver(BaseDriver):
 
             # move to nearest closest ground unit/building because no closest unit is closer than 5
             all_enemy_ground_units = self.ai.enemy_units.not_flying
+            killed_value_units = self.ai.state.score.killed_value_units
+            enemies_can_attack = enemies.filter(lambda unit: unit.can_attack_ground)
+            lost_reapers = self.ai.state.score.lost_minerals_army + self.ai.state.score.lost_vespene_army
             if all_enemy_ground_units.exists:
                 closest_enemy = all_enemy_ground_units.closest_to(r)
                 if r.health_percentage < 0.8:
@@ -139,6 +142,11 @@ class ReaperDriver(BaseDriver):
 
             # move to random closest start location if no closest buildings have been seen
             self.ai.do(r.move(random.choice(self.ai.enemy_start_locations)))
+            if lost_reapers == 0:
+                lost_reapers = 1
+            print(
+                f"\riteration : {self.ai.iteration}, Score : {(killed_value_units / lost_reapers):.2f}",
+                end="")
             # if TAGS.SearchAndDestroy != reaper_driver.tag:
             #     self.ai.do(r.move(random.choice(self.ai.enemy_start_locations)))
             #     reaper_driver.tag = TAGS.SearchAndDestroy

@@ -16,6 +16,14 @@ from qlearningtable import QLearningTable
 import enum
 from Sc2botAI.base.drivers.BaseDriver import BaseDriver
 QFILE = "reaper_q_driver.pickle"
+LOST_REAPER_PENALTY = -16
+STRUCTUE_KILL_REWARD = 12
+UNIT_KILL_REWARD = 8
+DAMAGE_REWARD = 0.3
+DAMAGE_PENALTY = -0.1
+RUN_ENEMY_MAIN_REWARD = 0.2
+RUN_ENEMY_MAIN_PENALTY = -0.2
+STAY_HEALTHY_REWARD = 0.1
 
 # TODO generic training map with adjustable configuration (ie spawn units in middle,  spawn structures,  rules)
 # TODO move qlearning table to a generic place for others qagents to import from
@@ -36,6 +44,8 @@ class QLearningTable:
             state_action = self.q_table.loc[observation, :]
             # some actions may have the same value, randomly choose on in these actions
             action = np.random.choice(state_action[state_action == np.max(state_action)].index)
+            # if self.epsilon > 0.3:
+            #     self.epsilon *= self.epsilon
         else:
             # choose random action
             action = np.random.choice(self.actions)
@@ -123,7 +133,7 @@ class GridMover:
 
     def attack(self, closest=None):
         if not closest:
-            self.ai.do(self.unit.move(random.choice(self.ai.enemy_start_locations)))
+            # self.ai.do(self.unit.move(random.choice(self.ai.enemy_start_locations)))
             return True
         if isinstance(closest, Units):
             closest = closest.closest_to(self.unit)
@@ -147,11 +157,7 @@ class GridMover:
         return True
 
 
-LOST_REAPER_PENALTY = -3
-STRUCTUE_KILL_REWARD = 6
-UNIT_KILL_REWARD = 2
-DAMAGE_REWARD = 0.1
-DAMAGE_PENALTY = -0.05
+
 
 ACTION_DO_NOTHING = 'donothing'
 ACTION_MOVE_UP = 'moveup'
@@ -187,8 +193,12 @@ class ReaperQAgent(BaseDriver):
     def __init__(self, ai=None, qtable=None, unit=None):
         super().__init__(ai=ai)
         self.qlearn = qtable or QLearningTable(actions=list(range(len(smart_actions))))
+        self.qlearn.epsilon = 0.9 # start session with 0.9 randomness
         self.unit = unit
+        self.distance_to_main = -99
         self.condition = UnitTypeId.REAPER
+        self.last_height = -99
+        self.is_climbing = 0
         self.lost_reapers = 0
         self.last_killed_value_units = 0
         self.last_structures_dmg = 0
@@ -211,7 +221,16 @@ class ReaperQAgent(BaseDriver):
                       and u.type_id not in {UnitTypeId.LARVA, UnitTypeId.EGG}
                       and u.distance_to(unit) < reaper_grenade_range
         )
+        closest_grenade = enemy_ground_units_in_grenade_range.sorted(lambda x: x.distance_to(unit))
+        weakest_grenade = enemy_ground_units_in_grenade_range.sorted(lambda x: x.health)
+
         controller = GridMover(self.ai, unit)
+        if len(enemies_can_attack) == 0:
+            try:
+                self.ai.do(unit.move(random.choice(self.ai.enemy_start_locations)))
+            except:
+                self.ai.do(unit.smart(random.choice(list(self.ai.expansion_locations.keys()))))
+            return True
         if smart_action == ACTION_DO_NOTHING:
             return True
         if smart_action == ACTION_MOVE_UP:
@@ -226,7 +245,6 @@ class ReaperQAgent(BaseDriver):
         if smart_action == ACTION_MOVE_RIGHT:
             controller.move_right()
             return True
-
         if smart_action == ACTION_MOVE_UP_RIGHT:
             controller.move_up_right()
             return True
@@ -243,41 +261,57 @@ class ReaperQAgent(BaseDriver):
             controller.attack(closest)
             return True
         elif not closest:  # no closest in sight
-            self.ai.do(unit.move(random.choice(self.ai.enemy_start_locations)))
+            # self.ai.do(unit.move(random.choice(self.ai.enemy_start_locations)))
             return True
-
         if smart_action == ACTION_ATTACK_WEAKEST_ENEMY and weakest:
             controller.attack(weakest)
             return True
-        elif not weakest:  # no weakest in sight
-            self.ai.do(unit.move(random.choice(self.ai.enemy_start_locations)))
+        if smart_action == ACTION_ATTACK_THROW_GRENADE and (closest_grenade or weakest_grenade):
+            # cant train grenades atm on this map
+            # controller.attack_throw_grenade(weakest, closest)
+            if closest_grenade:
+                controller.attack(closest_grenade)
+            else:
+                controller.attack(weakest_grenade)
             return True
 
-        if smart_action == ACTION_ATTACK_THROW_GRENADE and (weakest or closest):
-            controller.attack_throw_grenade(weakest, closest)
-            return True
-        else:  # no weakest in sight
-            self.ai.do(unit.move(random.choice(self.ai.enemy_start_locations)))
-            return True
-
-    async def execute(self):
+    async def execute(self, target=None):
+        if self.qlearn.epsilon < 0.9:
+            self.qlearn.epsilon = 0.9
+        # if not target:
+            # target = random.choice(list(self.ai.expansion_locations.keys()))
         lost_reaper = False
         if not len(self.ai.units(UnitTypeId.REAPER)):
+
             return True
         self.iteration_state = 0 # 0 started 1 dont do more
+
         for r in self.ai.units(UnitTypeId.REAPER):
             # hack,  if you are safe, and injured  heal up dont look for enemies
+            height = self.ai.get_terrain_z_height(r.position)
+            # distance_to_enemy_main = r.position.distance_to(self.ai.enemy_start_locations[0])
+            if height > self.last_height:
+                self.is_climbing = 1
+                self.last_height = height
+            else:
+                self.is_climbing = 0
             if self.is_safe_ground(r) and r.health_percentage < 0.8:
                 continue
 
+            # closest_ramp = self.ai._game_data.map_ramps.
+            # r.po
             enemies = self.ai.enemy_units | self.ai.enemy_structures
             enemy_close = enemies.filter(lambda unit: unit.can_attack_ground and unit.distance_to(r) < 25)
-            if not enemy_close:
-                self.policy = Policy.Offensive
-                loc = random.choice(self.ai.enemy_start_locations).towards_with_random_angle(
-                    self.ai.game_info.map_center, distance=10)
-                self.ai.do(r.move(loc))
-                continue
+            # if not enemy_close:
+            #     self.policy = Policy.Offensive
+            #     loc = random.choice(self.ai.enemy_start_locations).towards_with_random_angle(
+            #         self.ai.game_info.map_center, distance=10)
+            #     self.ai.do(r.move(loc))
+            #     continue
+
+
+
+
             friendlies = self.ai.units.filter(lambda unit: unit.distance_to(r) < 6)
             killed_value_units = self.ai.state.score.killed_value_units
             structures_dmg = self.ai.state.score.killed_value_structures
@@ -290,33 +324,46 @@ class ReaperQAgent(BaseDriver):
             self.reaper_count = len(self.ai.units(UnitTypeId.REAPER))
             enemy_d = {}
             for i in range(5):
-                enemy_d[i] = -99, -99
+                enemy_d[i] = -99, -99, -99
             try:
                 closest_5_enemies = enemies_can_attack[:5]
                 for i in range(len(closest_5_enemies)):
                     enemy = enemies_can_attack[i]
                     enemy_angle_to_me, enemy_distance_to_me = self.ai.calculate_angle_distance(r.position_tuple,
                                                                                                enemy.position_tuple)
-                    enemy_d[i] = enemy.type_id.value, enemy_angle_to_me * enemy_distance_to_me
+                    enemy_d[i] = enemy.type_id.value, enemy_angle_to_me * enemy_distance_to_me, enemy.health_percentage
             except Exception as e:
                 pass
                 # print("closest closest exception")
                 # print(e)
 
-            current_state = np.zeros(35)
+            current_state = np.zeros(50)
+            # 46 , 47 , 41
+            # 45 , p  , 40
+            # 43 , 44 , 42
+            idx = 40
+            for i, pos in enumerate(r.position.neighbors8):
+                # print(pos)
+                # print(type(pos))
+                current_state[idx + i] = self.ai.game_info.pathing_grid[pos.rounded]
+
             """
             TODO 5 closest enemies :
             TYPE ( worker , queen, is_flying, is_ranged , distance_to_me, angle_to_me
             NUMBER OF NEARBY FRIENDLIES RADIUS 10 ?
-            
+            NEIGHBORES 8 PATHABLE CHECKS
             
             """
-            for i in range(0, 10, 2):
-                enemy_idx = int(i/2)
-                current_state[i] = enemy_d[enemy_idx][0]
-                current_state[i+1] = enemy_d[enemy_idx][1]
+
+            for i in range(0, 15, 3):
+                enemy_idx = int(i/3)
+                current_state[i] = enemy_d[enemy_idx][0]  # unit id
+                current_state[i+1] = enemy_d[enemy_idx][1]  # distance * angle
+                current_state[i+2] = enemy_d[enemy_idx][2]  # health percent
             current_state[30] = r.health_percentage
-            current_state[31] = len(friendlies)
+            current_state[31] = self.is_climbing
+            current_state[32] = self.last_height
+
 
             if self.previous_action is not None:
                 reward = 0
@@ -328,7 +375,13 @@ class ReaperQAgent(BaseDriver):
                     reward += UNIT_KILL_REWARD
                 if self.last_dmg_dealt == damage_dealt:
                     reward += DAMAGE_PENALTY
-
+                if r.health_percentage > 0.7:
+                    reward += STAY_HEALTHY_REWARD
+                # if self.distance_to_main > distance_to_enemy_main > 10:
+                #     reward += RUN_ENEMY_MAIN_REWARD
+                # else:
+                #     reward += RUN_ENEMY_MAIN_PENALTY
+                # self.distance_to_main = distance_to_enemy_main
                 self.qlearn.learn(str(self.previous_state), self.previous_action, reward, str(current_state))
 
             rl_action = self.qlearn.choose_action(str(current_state))
@@ -340,8 +393,7 @@ class ReaperQAgent(BaseDriver):
             if self.lost_reapers == 0:
                 lost_reapers = 1
 
-
-            print(f"\riteration : {self.ai.iteration}, Score : {killed_value_units / lost_reapers}",end="")
+            print(f"\riteration : {self.ai.iteration}, Score : {(killed_value_units / lost_reapers):.2f}, Epsilon : {self.qlearn.epsilon}",end="")
             if self.ai.iteration % 200 == 0 or self.ai.iteration % 199 == 0 or self.ai.iteration % 198 == 0 and self.iteration_state == 0:
                 self.iteration_state = 1
                 try:
@@ -359,5 +411,5 @@ class ReaperQAgent(BaseDriver):
                     with open("report.txt", "a") as f:
                         # f.write(f"iteration : {self.ai.iteration}")
                         f.write(f"{killed_value_units/lost_reapers},")
-            self.ai.state.score.lost_minerals_army
+            # self.ai.state.score.lost_minerals_army
             await self.do_(r, smart_action, enemies_can_attack)

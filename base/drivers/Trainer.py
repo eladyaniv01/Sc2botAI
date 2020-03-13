@@ -1,26 +1,19 @@
-from Sc2botAI.BaseBot import BaseBot, QLearningTable
+from Sc2botAI.BaseBot import BaseBot
 import sys, os
-
 sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
-
-import random, numpy as np
-
-import sc2
-from sc2 import Race, Difficulty
+import logging
+import random
 from sc2.constants import *
-from sc2.player import Bot, Computer
-from sc2.position import Point2, Point3
-from sc2.unit import Unit
-from sc2.units import Units
+from sc2 import Race, Difficulty, maps
+from sc2.player import Bot, Computer, Human
+from base.drivers import Trainer
+from importlib import reload
+import sc2
+logging.basicConfig(level=logging.DEBUG,
+                    format='[%(levelname)s] (%(threadName)-10s) %(message)s',
+                    )
+BREAK_ITERATION = 605 # before zerg makes mutas
 
-
-KILL_UNIT_REWARD = 0.3
-KILL_BUILDING_REWARD = 0.9
-NO_MINERAL_FLOAT_REWARD = 0.5
-NO_MINERAL_FLOAT_PENALTY = -0.5
-GREATER_FOOD_REWARD = 0.4
-GREATER_FOOD_PENALTY = -0.7
-BREAK_ITERATION = 2000
 
 class Trainer(BaseBot):
     def __init__(self, debug = False):
@@ -35,14 +28,13 @@ class Trainer(BaseBot):
         self.previous_state = None
         self.action_space_cache = []
 
-
-
     async def on_step(self, iteration):
         await super().on_step(iteration)
+        return True
         if self.iteration == BREAK_ITERATION:
             await self.client.leave()
 
-        # training block
+        # training block - managing the  'env'
 
         enemy_units = self.enemy_units
         enemy_workers = self.enemy_units(UnitTypeId.DRONE)
@@ -54,113 +46,64 @@ class Trainer(BaseBot):
         bad_units = [x for x in enemy_units if x not in good_units]
         bad_flying = [x for x in bad_units if (x.is_flying and x.type_id != UnitTypeId.OVERLORD)]
         for u in bad_flying:
-            await self.client.debug_kill_unit(u)
-
-        # if self.iteration % 500 == 0:
-            # for u in bad_units:
-            #     await self.client.debug_kill_unit(u)
-        # if self.iteration == 2502:
-        #     await self.client.leave()
-        # if not self.units(UnitTypeId.THOR):
-        #     await self.client.debug_create_unit(
-        #         [[UnitTypeId.THOR, 1, self.main_base_ramp.depot_in_middle, 1]])
+            await self.client.debug_kill_unit(u) #shouldnt happen ->  kill mutas
 
         if not self.units(UnitTypeId.REAPER):
-
-            n = 1
             loc = random.choice(self.enemy_start_locations).towards_with_random_angle(self.game_info.map_center,distance=50)
-            loc2 = random.choice(self.enemy_start_locations).towards_with_random_angle(self.game_info.map_center,distance=50)
+            loc2 = random.choice(self.enemy_start_locations).towards_with_random_angle(self.game_info.map_center,distance=5)
             loc3 = random.choice(self.enemy_start_locations).towards_with_random_angle(self.game_info.map_center,distance=50)
-            if self.iteration > 25:
-                n = 1
+            if self.iteration > 0:
                 await self.client.debug_create_unit(
                     [[UnitTypeId.REAPER, 1, loc2, 1]])
             if self.iteration > 325:
-                n = 2
                 await self.client.debug_create_unit(
                     [[UnitTypeId.REAPER, 1, loc3, 1]])
             if self.iteration > 650:
-                n = 3
                 await self.client.debug_create_unit(
                     [[UnitTypeId.REAPER, 1, loc2, 1]])
             if self.iteration > 900:
-                n = 4
                 await self.client.debug_create_unit(
                     [[UnitTypeId.REAPER, 2, loc, 1]])
 
-
-            return True
-
-            if not self.enemy_units(UnitTypeId.QUEEN):
-                await self.client.debug_create_unit(
-                    [[UnitTypeId.QUEEN, 1, random.choice(self.enemy_start_locations), 2]])
-
-        return True
-        if not self.units(UnitTypeId.REAPER):
-            for u in self.enemy_units:
-                await self.client.debug_kill_unit(u)
+        killed_value_units = self.state.score.killed_value_units
+        lost_reapers = self.state.score.lost_minerals_army + self.state.score.lost_vespene_army
+        if lost_reapers == 0:
+            lost_reapers = 1
+        print(
+            f"\riteration : {self.iteration}, Score : {(killed_value_units / lost_reapers):.2f}",
+            end="")
 
 
-
-            loc = self.game_info.map_center\
-                .towards_with_random_angle(self.main_base_ramp.top_center,
-                                           distance=30)
-            loc2 = self.game_info.map_center\
-                .towards_with_random_angle(self.enemy_start_locations[0],
-                                           distance=30)
-            await self.client.debug_create_unit(
-                [[UnitTypeId.REAPER, 1, loc, 1], [UnitTypeId.ZERGLING, 3, loc, 2]])
-
-            # await self.client.debug_create_unit(
-            #     [[UnitTypeId.ZERGLING, 3, loc, 2]])
-
-            return False
-
-            if not self.enemy_units(UnitTypeId.QUEEN):
-                await self.client.debug_create_unit(
-                    [[UnitTypeId.QUEEN, 1, random.choice(self.enemy_start_locations), 2]])
-
-        return True
+# def main():
+#     map = "AbyssalReefLE"
+#     sc2.run_game(
+#         sc2.maps.get(map),
+#         [Bot(Race.Terran, Trainer(debug = False)), Computer(Race.Zerg, Difficulty.Easy)],
+#         realtime=False,
+#
+#         # sc2_version="4.10.1",
+#     )
+# if __name__ == "__main__":
+#     for i in range(20):
+#         main()
 
 
+
+#
 def main():
-    # map = random.choice(
-    #     [
-    #         'AbyssalReefLE',
-    #         'AcropolisLE',
-    #         'AutomatonLE',
-    #         'BelShirVestigeLE',
-    #         'CactusValleyLE',
-    #         'CyberForestLE',
-    #         'DiscoBloodbathLE',
-    #         'EphemeronLE',
-    #         'HonorgroundsLE',
-    #         'KairosJunctionLE',
-    #         'KingsCoveLE',
-    #         'NewkirkPrecinctTE',
-    #         'NewRepugnancyLE',
-    #         'PaladinoTerminalLE',
-    #         'PortAleksanderLE',
-    #         'ProximaStationLE',
-    #         'ThunderbirdLE',
-    #         'TritonLE',
-    #         'WintersGateLE',
-    #         'WorldofSleepersLE',
-    #         'YearZeroLE'
-    #
-    #     ]
-    # )
+    player_config = [Bot(Race.Terran, Trainer(debug=True)), Computer(Race.Zerg, Difficulty.Easy)]
+    map = "Abyssal Reef LE"
+    map = "ReaperTraining1"
+    gen = sc2.main._host_game_iter(maps.get(map), player_config, realtime=False)
 
-    map = "AbyssalReefLE"
-    sc2.run_game(
-        sc2.maps.get(map),
-        [Bot(Race.Terran, Trainer(debug = True)), Computer(Race.Zerg, Difficulty.Easy)],
-        realtime=False,
+    for i in range(200):
+        print(f"i = {i}")
+        r = next(gen)
 
-        # sc2_version="4.10.1",
-    )
+        # reload(Trainer)
+        player_config[0].ai = Trainer(debug=True)
+        gen.send(player_config)
+
 
 if __name__ == "__main__":
-    for i in range(20):
-        print(f"i = {i}")
-        main()
+    main()
