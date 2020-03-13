@@ -6,6 +6,7 @@ name: Python application
 on:
   push:
     branches: [ master ]
+ 
   pull_request:
     branches: [ master ]
 
@@ -36,8 +37,6 @@ jobs:
 #         pip install pytest
 #         pytest
     - name: Black Code Formatter
-      uses: lgeiger/black-action@v1.0.1
-      with:
-        path: .
+      run: black .
     - name: git Actions
       uses: srt32/git-actions@v0.0.3
