@@ -37,5 +37,7 @@ jobs:
 #         pytest
     - name: Black Code Formatter
       uses: lgeiger/black-action@v1.0.1
+      with:
+        path: .
     - name: git Actions
       uses: srt32/git-actions@v0.0.3
