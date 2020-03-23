@@ -1,7 +1,7 @@
 from scipy.spatial import Delaunay
 import numpy as np
 
-def get_edge_points(points: np.array, alpha: float, only_outer: bool = True):
+def get_edge_points(points: np.array, alpha: float, only_outer: bool = True) -> list:
     """
     Compute the alpha shape (concave hull) of a set of points.
     :param points: np.array of shape (n,2) points.

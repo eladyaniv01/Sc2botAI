@@ -57,11 +57,38 @@ class Expansion:
         self.turrets = edge_points[0:-1:9]
         self.turret_queue = set(self.turrets)
 
+    def fix_borders(self):
+        expos_rounded = [p.rounded for p in list(self.ai.expansion_locations.keys())]
 
-    def set_borders(self):
+        li = []
+        for border in self.borders:
+            b = Point2(border)
+            for exp in expos_rounded:
+                if self.same_height(exp,b):
+                    if exp != self.coords:
+                        if 15 > exp.distance_to(b) > 5:
+                            li.append(border)
+                    else:
+                        li.append(border)
+        self.borders = list(set(li))
+
+    def set_borders(self, r=18):
         self.coords = self.coords.rounded
+        step = 1
+        height_here = self.ai.game_info.terrain_height[self.coords]
+        main_height = self.ai.game_info.terrain_height[self.ai.start_location.rounded]
+        natural_height = self.ai.game_info.terrain_height[self.ai.main_base_ramp.lower.pop()]# doesnt matter which
+        # if height_here == main_height:
+        #     r = 20
+        # elif height_here == natural_height:
+        #     print(natural_height)
+        #     r = 15
+        #     step = 2
+        # else:
+        #     self.borders = []
+        #     return True
         loc = self.coords
-        r = 18
+
         row_start = loc.y - r
         row_end = loc.y + r
         col_start = loc.x - r
@@ -71,7 +98,7 @@ class Expansion:
         for (b, a), value in np.ndenumerate(self.grid):
             p = (a, b)
             # skip non placements which are zero
-            if value == 0 or not self.same_height(Point2(p),self.coords):
+            if value == 0 or not self.same_height(Point2(p), self.coords):
                 continue
             # skip if not in expansion zone
             if not (col_start <= a <= col_end):
@@ -86,8 +113,13 @@ class Expansion:
         self.grid_points = points
         p_arr = np.array(p_arr)
         edges = get_edge_points(p_arr, 0.8)
-
+        # final_edges = []
+        # step = 1
+        # for i in range(0,len(edges),step):
+        #     final_edges.append(edges[i])
+        # self.borders = final_edges
         self.borders = edges
+        self.fix_borders()
         self.solve_turret_placements()
 
     def __repr__(self):

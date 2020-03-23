@@ -18,6 +18,7 @@ class MapManager:
         self.cached_ramps = {}
         self.expansions = {}
         self._solved = False
+        self.cliffs = []
         self.townhall_color = Point3((200, 170, 55)) #gold
         self.building_color = Point3((255, 0, 0)) #red
         self.depot_color = Point3((55, 255, 200)) #lBlue
@@ -28,7 +29,7 @@ class MapManager:
         self.not_buildable_color = Point3((0, 0, 0)) #black
         self.ramp_color = Point3((139, 0, 0)) # brown
         self.vision_blocker_color = Point3((139, 0, 80)) #purple
-
+        self.height_map = None # will be set on first solve expansions
 
     def solve_ramps(self):
         for index, ramp in enumerate(self.ai.game_info.map_ramps):
@@ -38,6 +39,7 @@ class MapManager:
         if not self.ai:
             print("Seems like this manager is not connected to any ai")
             return True
+        self.height_map = self.ai.game_info.terrain_height
         self.solve_ramps()
         expansion_dict = sorted(self.ai.expansion_locations.items(),
                                 key=lambda x: x[0].distance_to_point2(list(self.ai.main_base_ramp.points)[0]),
@@ -57,6 +59,26 @@ class MapManager:
             [ramp.expansions.append(expansion) for ramp in expansion.ramps]
 
         self._solved = True
+        li = []
+        for i, exp in self.expansions.items():
+            li.append((exp, exp.borders))
+        pts = []
+        for exp, pts_lst in li:
+            ramps = exp.ramps
+            for p in pts_lst:
+                p0 = Point2(p)
+                h0 = self.height_map[p0.rounded]
+                for n_ in p0.neighbors8:
+                    for new_point in n_.neighbors8:
+                        if new_point.is_further_than(0, ramps[0].coords):
+                            h = self.height_map[new_point.rounded]
+                            if h + 6 < h0  \
+                                    and self.ai.game_info.pathing_grid[new_point] == 1:
+                                pts.append(new_point)
+
+        self.cliffs = pts
+        # with open("expansion_border_lists.pickle", "wb") as f:
+        #     pickle.dump(li, f)
 
     def get_exp_ramps(self, coords=None):
         if not coords:
