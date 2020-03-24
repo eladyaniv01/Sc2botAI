@@ -1,6 +1,8 @@
 import enum
 import random
-
+from typing import List, Union
+from sc2.unit import Unit
+from sc2 import bot_ai
 from sc2.ids.unit_typeid import UnitTypeId
 
 
@@ -14,18 +16,18 @@ class UnitPriority(enum.Enum):
 
 
 class BaseDriver:
-    def __init__(self, ai):
+    def __init__(self, ai: Union[bot_ai, None]):
         super().__init__()
         self.ai = ai
         self.targets = []
 
-    def is_safe_ground(self, my_unit):
+    def is_safe_ground(self, my_unit: Unit) -> bool:
         enemies = self.ai.enemy_units.filter(lambda enemy: enemy.can_attack_ground and enemy.distance_to(my_unit) < 10)
         if len(enemies) > 0:
             return False
         return True
 
-    def seek_and_harras(self, unit):  # for harrasing
+    def seek_and_harras(self, unit: Unit) -> bool:  # for harrasing not sure if this should return bool or not, or anything
         enemy_workers = self.ai.enemy_units(UnitTypeId.DRONE) | self.ai.enemy_units(
             UnitTypeId.PROBE) | self.ai.enemy_units(UnitTypeId.SCV)
         if len(enemy_workers) > 0:

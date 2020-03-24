@@ -1,6 +1,7 @@
 from scipy.spatial import Delaunay
 import numpy as np
 
+
 def get_edge_points(points: np.array, alpha: float, only_outer: bool = True) -> list:
     """
     Compute the alpha shape (concave hull) of a set of points.
@@ -52,7 +53,8 @@ def get_edge_points(points: np.array, alpha: float, only_outer: bool = True) -> 
         edge_points.append((points[[i, j], 0][1], points[[i, j], 1][0]))
     return edge_points
 
-def extract_sub_matrix(matrix, row_start_idx, row_end_idx, col_start_idx, col_end_idx):
+
+def extract_sub_matrix(matrix: np.array(), row_start_idx: int, row_end_idx: int, col_start_idx: int, col_end_idx: int) -> list:
     result = []
     print(f"row_start_idx : {row_start_idx}")
     print(f"row_end_idx : {row_end_idx}")

@@ -1,7 +1,10 @@
-from typing import List
+from typing import List, Union, Tuple
+from sc2 import bot_ai
 
 from sc2.position import Point3, Point2
 import numpy as np
+
+from Sc2botAI.base.Expansion import Expansion
 
 GREEN = Point3((0, 255, 0))
 RED = Point3((255, 0, 0))
@@ -9,7 +12,7 @@ BLUE = Point3((0, 0, 255))
 
 
 class DebugManager:
-    def __init__(self, ai=None):
+    def __init__(self, ai: Union[bot_ai, None] = None):
         self.ai = ai
 
     def draw_debug(self):
@@ -25,7 +28,7 @@ class DebugManager:
                              text='VB', box_r=1)
         # self.draw_point_list(self.ai.game_info.destructibles, text='DS', box_r=1, color=RED)
 
-    def draw_point_list(self, point_list: List = None, color=None, text=None, box_r=None):
+    def draw_point_list(self, point_list: List = None, color=None, text=None, box_r=None) -> bool:
         if not color:
             color = GREEN
         if not point_list or (not text and not box_r):
@@ -107,7 +110,7 @@ class DebugManager:
                 size=30,
             )
 
-    def draw_expansion_grid(self, expansion, color):
+    def draw_expansion_grid(self, expansion: Expansion, color: Union[Point3, Tuple]):
 
         if len(expansion.borders) == 0:
             print("shouldn't be here !")
@@ -126,7 +129,7 @@ class DebugManager:
         points = [x.position for x in self.ai.mineral_field]
         self.draw_point_list(points, color=self.ai.map_manager.mineral_color, box_r=0.5)
 
-    def draw_expansion_borders(self, color):
+    def draw_expansion_borders(self, color: Union[Point3, Tuple]):
         height_map = self.ai.game_info.terrain_height
 
         for expansion in self.ai.map_manager.expansions.values():
@@ -193,7 +196,7 @@ class DebugManager:
         #             size=30,
         #         )
 
-    def draw_placement_grid(self, expansion):
+    def draw_placement_grid(self, expansion: Expansion):
         map_area = self.ai.game_info.playable_area
         for (b, a), value in np.ndenumerate(self.ai.game_info.placement_grid.data_numpy):
             # skip non placements which are zero

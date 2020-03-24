@@ -1,5 +1,7 @@
 import random
+from typing import Union
 
+from sc2 import bot_ai
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2, Point3
@@ -7,30 +9,9 @@ from sc2.unit import Unit
 import enum
 from Sc2botAI.base.drivers.BaseDriver import BaseDriver
 
-class TAGS(enum.Enum):
-    Idle = 0,
-    SearchAndDestroy = 1,
-
-
-class UnitT:
-    def __init__(self,id, tag = None, unit=None):
-        self.id = id
-        self.unit = unit
-        if tag:
-            self.tag = tag
-        else:
-            self.tag = TAGS.Idle
-
-    def set_tag(self, tag=TAGS.Idle):
-        self.tag = tag
-
-
-    def __repr__(self):
-        return f"i am a tag for {self.unit}"
-
 
 class ReaperDriver(BaseDriver):
-    def __init__(self, ai=None):
+    def __init__(self, ai: Union[bot_ai, None]):
         super().__init__(ai)
         self.ai = ai
         self.condition = UnitTypeId.REAPER
@@ -41,11 +22,11 @@ class ReaperDriver(BaseDriver):
     def update_iteration(self):
         self.iteration = self.ai.iteration
 
-    def check_unit(self, unit):
+    def check_unit(self, unit: Unit) -> bool:
         return unit in set(self.ai.units(self.condition))
 
-    def attack_prime(self, unit, target):
-        if self.WORKERS:
+    def attack_prime(self, unit: Unit, target: Unit) -> bool:
+        if self.WORKERS: # probably should change this name as it's referring to closest enemy workers to the reaper
             workers = self.WORKERS.filter(lambda unit: unit.distance_to(unit.position) < 20)
             if len(workers) > 0:
                 prime_target = min(self.WORKERS, key=lambda x: x.health_percentage)
@@ -54,7 +35,7 @@ class ReaperDriver(BaseDriver):
         self.ai.do(unit.attack(target))
         return True
 
-    async def execute(self):
+    async def execute(self) -> bool:
         """
         logic and behavior goes here,
          what will probably end up happening is that

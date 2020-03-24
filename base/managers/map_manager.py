@@ -1,6 +1,8 @@
 from collections import namedtuple
 from typing import Union
 
+from sc2 import bot_ai
+
 from Sc2botAI.base.Expansion import Expansion
 from Sc2botAI.base.RampExt import RampExt
 from sc2.position import Point3, Point2
@@ -13,7 +15,7 @@ from sc2.position import Point3, Point2
 
 class MapManager:
 
-    def __init__(self, ai=None):
+    def __init__(self, ai: Union[bot_ai, None] = None):
         self.ai = ai
         self.cached_ramps = {}
         self.expansions = {}
