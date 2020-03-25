@@ -1,3 +1,5 @@
+from typing import Union
+
 from sc2 import bot_ai
 from sc2.ids.unit_typeid import UnitTypeId
 from Sc2botAI.base.drivers.reaper_q import ReaperQAgent
@@ -12,3 +14,4 @@ class DriverManager:
 
     def set_drivers(self):
         units = self.ai.units
+        # logic inserted here
