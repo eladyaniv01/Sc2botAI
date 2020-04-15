@@ -1,3 +1,5 @@
+from typing import Union
+
 from scipy.spatial import Delaunay
 import numpy as np
 
@@ -48,13 +50,18 @@ def get_edge_points(points: np.array, alpha: float, only_outer: bool = True) -> 
             add_edge(edges, ia, ib)
             add_edge(edges, ib, ic)
             add_edge(edges, ic, ia)
-    edge_points = []
-    for i, j in edges:
-        edge_points.append((points[[i, j], 0][1], points[[i, j], 1][0]))
+    edge_points = [(points[[i, j], 0][1], points[[i, j], 1][0]) for i, j in edges]
+
     return edge_points
 
 
-def extract_sub_matrix(matrix: np.array(), row_start_idx: int, row_end_idx: int, col_start_idx: int, col_end_idx: int) -> list:
+def extract_sub_matrix(
+    matrix: np.array([type(np.ndarray), type(list)]),
+    row_start_idx: int,
+    row_end_idx: int,
+    col_start_idx: int,
+    col_end_idx: int,
+) -> list:
     result = []
     print(f"row_start_idx : {row_start_idx}")
     print(f"row_end_idx : {row_end_idx}")

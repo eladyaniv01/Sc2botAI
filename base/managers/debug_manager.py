@@ -12,7 +12,7 @@ BLUE = Point3((0, 0, 255))
 
 
 class DebugManager:
-    def __init__(self, ai: Union[bot_ai, None] = None):
+    def __init__(self, ai: bot_ai = None):
         self.ai = ai
 
     def draw_debug(self):
@@ -24,8 +24,12 @@ class DebugManager:
         self.draw_minerals()
         # self.draw_structure_info()
         # self.draw_vision_blockers()
-        self.draw_point_list(self.ai.game_info.vision_blockers, color=self.ai.map_manager.vision_blocker_color,
-                             text='VB', box_r=1)
+        self.draw_point_list(
+            self.ai.game_info.vision_blockers,
+            color=self.ai.map_manager.vision_blocker_color,
+            text="VB",
+            box_r=1,
+        )
         # self.draw_point_list(self.ai.game_info.destructibles, text='DS', box_r=1, color=RED)
 
     def draw_point_list(self, point_list: List = None, color=None, text=None, box_r=None) -> bool:
@@ -45,15 +49,7 @@ class DebugManager:
                 self.ai.client.debug_box_out(p0, p1, color=color)
             if text:
                 self.ai.client.debug_text_world(
-                    "\n".join(
-                        [
-                            f"{text}",
-
-                        ]
-                    ),
-                    pos,
-                    color=color,
-                    size=30,
+                    "\n".join([f"{text}",]), pos, color=color, size=30,
                 )
 
     def draw_unit_info(self):
@@ -63,7 +59,6 @@ class DebugManager:
                     [
                         f"{unit.type_id.name}:{unit.type_id.value}",
                         f"({unit.position.x},{unit.position.y},{self.ai.game_info.terrain_height[unit.position.rounded]}",
-
                     ]
                     + [repr(x) for x in unit.orders]
                 ),
@@ -99,15 +94,7 @@ class DebugManager:
             color = Point3((0, 255, 0))
             self.ai.client.debug_box_out(p0, p1, color=color)
             self.ai.client.debug_text_world(
-                "\n".join(
-                    [
-                        f"VB",
-
-                    ]
-                ),
-                pos,
-                color=color,
-                size=30,
+                "\n".join([f"VB",]), pos, color=color, size=30,
             )
 
     def draw_expansion_grid(self, expansion: Expansion, color: Union[Point3, Tuple]):
@@ -163,13 +150,7 @@ class DebugManager:
             color = self.ai.map_manager.turret_color
             # self.ai.client.debug_box_out(p0, p1, color=color)
             self.ai.client.debug_text_world(
-                "\n".join(
-                    [
-                        f"C",
-                        f"h:{self.ai.game_info.terrain_height[pos]:.2f}",
-
-                    ]
-                ),
+                "\n".join([f"C", f"h:{self.ai.game_info.terrain_height[pos]:.2f}",]),
                 pos,
                 color=color,
                 size=30,
@@ -241,10 +222,7 @@ class DebugManager:
                 self.ai.client.debug_box_out(p0, p1, color=color)
                 self.ai.client.debug_text_world(
                     "\n".join(
-                        [
-                            f"{ramp.name}",
-                            f"Coords: ({p.position.x:.2f},{p.position.y:.2f})",
-                        ]
+                        [f"{ramp.name}", f"Coords: ({p.position.x:.2f},{p.position.y:.2f})",]
                     ),
                     pos,
                     color=(0, 255, 0),
@@ -284,6 +262,7 @@ class DebugManager:
                     color=(0, 255, 255),
                     size=8,
                 )
+
 
 # _game_info.vision_blockers
 # _game_info.destructibles

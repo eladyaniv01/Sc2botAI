@@ -3,7 +3,7 @@ from sc2.position import Point2
 
 
 class RampExt:
-    def __init__(self, ramp: Ramp = Ramp, index: int = None, expansions: list= None):
+    def __init__(self, ramp: Ramp = Ramp, index: int = None, expansions: list = None):
         """
         Basic object for storing Ramp information
         """

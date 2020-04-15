@@ -1,5 +1,6 @@
 from Sc2botAI.BaseBot import BaseBot
 import sys, os
+
 sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
 import logging
 import random
@@ -10,14 +11,15 @@ from base.drivers import Trainer
 from importlib import reload
 import sc2
 from sc2.unit import Unit
-logging.basicConfig(level=logging.DEBUG,
-                    format='[%(levelname)s] (%(threadName)-10s) %(message)s',
-                    )
-BREAK_ITERATION = 1505 # before zerg makes mutas
+
+logging.basicConfig(
+    level=logging.DEBUG, format="[%(levelname)s] (%(threadName)-10s) %(message)s",
+)
+BREAK_ITERATION = 1505  # before zerg makes mutas
 
 
 class Trainer(BaseBot):
-    def __init__(self, debug = False):
+    def __init__(self, debug=False):
         super().__init__(debug=debug)
         self.sent_order = False
         # self.qlearn = QLearningTable(actions=list(range(len(smart_actions))))
@@ -59,27 +61,35 @@ class Trainer(BaseBot):
         bad_units = [x for x in enemy_units if x not in good_units]
         bad_flying = [x for x in bad_units if (x.is_flying and x.type_id != UnitTypeId.OVERLORD)]
         for u in bad_flying:
-            await self.client.debug_kill_unit(u) #shouldnt happen ->  kill mutas
+            await self.client.debug_kill_unit(u)  # shouldnt happen ->  kill mutas
 
         if not self.enemy_units(UnitTypeId.ZEALOT):
             # if not self.no_more:
             from threading import Lock
+
             lock = Lock()
             with lock:
                 await self.client.debug_create_unit(
-                    [[UnitTypeId.ZEALOT, 1, random.choice(self.enemy_start_locations), 2]])
+                    [[UnitTypeId.ZEALOT, 1, random.choice(self.enemy_start_locations), 2,]]
+                )
                 # self.no_more = True
 
         if not self.units(UnitTypeId.REAPER):
-            loc = random.choice(self.enemy_start_locations).towards_with_random_angle(self.game_info.map_center,distance=50)
-            loc2 = random.choice(self.enemy_start_locations).towards_with_random_angle(self.game_info.map_center,distance=5)
-            loc3 = random.choice(self.enemy_start_locations).towards_with_random_angle(self.game_info.map_center,distance=50)
+            loc = random.choice(self.enemy_start_locations).towards_with_random_angle(
+                self.game_info.map_center, distance=50
+            )
+            loc2 = random.choice(self.enemy_start_locations).towards_with_random_angle(
+                self.game_info.map_center, distance=5
+            )
+            loc3 = random.choice(self.enemy_start_locations).towards_with_random_angle(
+                self.game_info.map_center, distance=50
+            )
             if self.iteration > 0:
                 from threading import Lock
+
                 lock = Lock()
                 with lock:
-                    await self.client.debug_create_unit(
-                        [[UnitTypeId.REAPER, 1, loc2, 1]])
+                    await self.client.debug_create_unit([[UnitTypeId.REAPER, 1, loc2, 1]])
             # if self.iteration > 325:
             #     await self.client.debug_create_unit(
             #         [[UnitTypeId.REAPER, 1, loc3, 1]])
@@ -91,18 +101,17 @@ class Trainer(BaseBot):
             #         [[UnitTypeId.REAPER, 1, loc2, 1]])
 
 
-
-
 def main():
     map = "AbyssalReefLE"
     sc2.run_game(
         sc2.maps.get(map),
-        [Bot(Race.Terran, Trainer(debug = False)), Computer(Race.Protoss, Difficulty.Easy)],
+        [Bot(Race.Terran, Trainer(debug=False)), Computer(Race.Protoss, Difficulty.Easy),],
         realtime=True,
         disable_fog=True
-
         # sc2_version="4.10.1",
     )
+
+
 if __name__ == "__main__":
     for i in range(20):
         main()

@@ -17,5 +17,3 @@ logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 import Sc2botAI.base
-
-

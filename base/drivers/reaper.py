@@ -11,7 +11,7 @@ from Sc2botAI.base.drivers.BaseDriver import BaseDriver
 
 
 class ReaperDriver(BaseDriver):
-    def __init__(self, ai: Union[bot_ai, None]):
+    def __init__(self, ai: bot_ai = None):
         super().__init__(ai)
         self.ai = ai
         self.condition = UnitTypeId.REAPER
@@ -26,7 +26,9 @@ class ReaperDriver(BaseDriver):
         return unit in set(self.ai.units(self.condition))
 
     def attack_prime(self, unit: Unit, target: Unit) -> bool:
-        if self.WORKERS: # probably should change this name as it's referring to closest enemy workers to the reaper
+        if (
+            self.WORKERS
+        ):  # probably should change this name as it's referring to closest enemy workers to the reaper
             workers = self.WORKERS.filter(lambda unit: unit.distance_to(unit.position) < 20)
             if len(workers) > 0:
                 prime_target = min(self.WORKERS, key=lambda x: x.health_percentage)
@@ -49,11 +51,15 @@ class ReaperDriver(BaseDriver):
         enemies = self.ai.enemy_units | self.ai.enemy_structures
         enemies_can_attack = enemies.filter(lambda unit: unit.can_attack_ground)
 
-
         for r in self.ai.units(UnitTypeId.REAPER):
-            assert r.PRIORITY, f"PRIORITY is not set for {r}"# this breaks when debugger creates a unit
-            self.WORKERS = self.ai.enemy_units(UnitTypeId.DRONE) | self.ai.enemy_units(
-                UnitTypeId.PROBE) | self.ai.enemy_units(UnitTypeId.SCV)
+            assert (
+                r.PRIORITY
+            ), f"PRIORITY is not set for {r}"  # this breaks when debugger creates a unit
+            self.WORKERS = (
+                self.ai.enemy_units(UnitTypeId.DRONE)
+                | self.ai.enemy_units(UnitTypeId.PROBE)
+                | self.ai.enemy_units(UnitTypeId.SCV)
+            )
             if len(self.WORKERS) > 0:
                 target = min(self.WORKERS, key=lambda x: x.health_percentage)
             else:
@@ -66,7 +72,9 @@ class ReaperDriver(BaseDriver):
             )  # threats that can attack the reaper
 
             if r.health_percentage < 0.3 and enemy_threats_close:
-                retreat_points = self.neighbors8(r.position, distance=2) | self.neighbors8(r.position, distance=4)
+                retreat_points = self.neighbors8(r.position, distance=2) | self.neighbors8(
+                    r.position, distance=4
+                )
                 # filter points that are pathable
                 retreat_points = {x for x in retreat_points if self.in_pathing_grid(x)}
                 if retreat_points:
@@ -74,7 +82,9 @@ class ReaperDriver(BaseDriver):
                     retreat_point = closest_enemy.position.furthest(retreat_points)
                     self.ai.do(r.move(retreat_point))
                     continue  # continue for loop, dont execute any of the following
-            enemy_threats_very_close = enemies.filter(lambda unit: unit.can_attack_ground and unit.distance_to(r) < 3.5)
+            enemy_threats_very_close = enemies.filter(
+                lambda unit: unit.can_attack_ground and unit.distance_to(r) < 3.5
+            )
             # queens_close = enemy_threats_very_close.filter(lambda unit: unit.type_id == UnitTypeId.QUEEN)
             # if len(queens_close) > 0:
             #     print("Queen is close")
@@ -88,14 +98,18 @@ class ReaperDriver(BaseDriver):
             # if r.weapon_cooldown != 0 and enemy_threats_very_close:
             if enemy_threats_very_close:
                 if self.ai.iteration % 2 == 0:
-                # if 1 == 1:
-                    retreat_points = self.neighbors8(r.position, distance=2) | self.neighbors8(r.position, distance=4)
+                    # if 1 == 1:
+                    retreat_points = self.neighbors8(r.position, distance=2) | self.neighbors8(
+                        r.position, distance=4
+                    )
                     # filter points that are pathable by a reaper
                     retreat_points = {x for x in retreat_points if self.in_pathing_grid(x)}
                     if retreat_points:
                         closest_enemy = enemy_threats_very_close.closest_to(r)
-                        retreat_point = max(retreat_points,
-                                            key=lambda x: x.distance_to(closest_enemy) - x.distance_to(r))
+                        retreat_point = max(
+                            retreat_points,
+                            key=lambda x: x.distance_to(closest_enemy) - x.distance_to(r),
+                        )
                         # retreat_point = closest_enemy.position.furthest(retreat_points)
                         self.ai.do(r.move(retreat_point))
                         continue  # continue for loop, don't execute any of the following
@@ -110,12 +124,14 @@ class ReaperDriver(BaseDriver):
                 continue  # continue for loop, dont execute any of the following
 
             # attack is on cooldown, check if grenade is on cooldown, if not then throw it to furthest closest in range 5
-            reaper_grenade_range = self.ai._game_data.abilities[AbilityId.KD8CHARGE_KD8CHARGE.value]._proto.cast_range
+            reaper_grenade_range = self.ai._game_data.abilities[
+                AbilityId.KD8CHARGE_KD8CHARGE.value
+            ]._proto.cast_range
             enemy_ground_units_in_grenade_range = enemies_can_attack.filter(
                 lambda unit: not unit.is_structure
-                             and not unit.is_flying
-                             and unit.type_id not in {UnitTypeId.LARVA, UnitTypeId.EGG}
-                             and unit.distance_to(r) < reaper_grenade_range
+                and not unit.is_flying
+                and unit.type_id not in {UnitTypeId.LARVA, UnitTypeId.EGG}
+                and unit.distance_to(r) < reaper_grenade_range
             )
             # if enemy_ground_units_in_grenade_range.exists and (r.is_attacking or r.is_moving):
             if enemy_ground_units_in_grenade_range.exists and r.is_attacking:
@@ -126,20 +142,22 @@ class ReaperDriver(BaseDriver):
                 )
                 furthest_enemy = None
                 for enemy in enemy_ground_units_in_grenade_range:
-                    if await self.ai.can_cast(r, AbilityId.KD8CHARGE_KD8CHARGE, enemy,
-                                                cached_abilities_of_unit=abilities):
+                    if await self.ai.can_cast(
+                        r, AbilityId.KD8CHARGE_KD8CHARGE, enemy, cached_abilities_of_unit=abilities,
+                    ):
                         furthest_enemy = enemy
                         break
                 if furthest_enemy:
                     self.ai.do(r(AbilityId.KD8CHARGE_KD8CHARGE, furthest_enemy))
                     continue  # continue for loop, don't execute any of the following
 
-
             # move to nearest closest ground unit/building because no closest unit is closer than 5
             all_enemy_ground_units = self.ai.enemy_units.not_flying
             killed_value_units = self.ai.state.score.killed_value_units
             enemies_can_attack = enemies.filter(lambda unit: unit.can_attack_ground)
-            lost_reapers = self.ai.state.score.lost_minerals_army + self.ai.state.score.lost_vespene_army
+            lost_reapers = (
+                self.ai.state.score.lost_minerals_army + self.ai.state.score.lost_vespene_army
+            )
             if all_enemy_ground_units.exists:
                 closest_enemy = all_enemy_ground_units.closest_to(r)
                 if r.health_percentage > 0.8:
@@ -148,7 +166,7 @@ class ReaperDriver(BaseDriver):
                 # move towards to max unit range if closest is closer than 4
 
             # move to random closest start location if no closest buildings have been seen
-            self.seek_and_harras(r)
+            self.seek_and_harass(r)
 
             if lost_reapers == 0:
                 lost_reapers = 1
@@ -171,7 +189,12 @@ class ReaperDriver(BaseDriver):
     def neighbors4(self, position, distance=1):
         p = position
         d = distance
-        return {Point2((p.x - d, p.y)), Point2((p.x + d, p.y)), Point2((p.x, p.y - d)), Point2((p.x, p.y + d))}
+        return {
+            Point2((p.x - d, p.y)),
+            Point2((p.x + d, p.y)),
+            Point2((p.x, p.y - d)),
+            Point2((p.x, p.y + d)),
+        }
 
     # stolen and modified from position.py
     def neighbors8(self, position, distance=1):

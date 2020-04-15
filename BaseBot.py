@@ -21,12 +21,12 @@ from Sc2botAI.base.drivers.BaseDriver import UnitPriority
 
 
 class BaseBot(sc2.BotAI):
-
     def __init__(self, debug=False):
         super().__init__()
 
         ra = ReaperQAgent(ai=self)
         import pickle
+
         if os.path.exists(QFILE):
             with open(QFILE, "rb") as f:
                 ra = ReaperQAgent(ai=self, qtable=pickle.load(f))
@@ -52,7 +52,9 @@ class BaseBot(sc2.BotAI):
         self.iteration = iteration
         self.client.game_step = 4
         killed_value_units = self.state.score.killed_value_units
-        damage_dealt = self.state.score.total_damage_dealt_life + self.state.score.total_damage_dealt_shields
+        damage_dealt = (
+            self.state.score.total_damage_dealt_life + self.state.score.total_damage_dealt_shields
+        )
         lost_reapers = self.state.score.lost_minerals_army + self.state.score.lost_vespene_army
         if lost_reapers == 0:
             lost_reapers = 1
@@ -94,7 +96,9 @@ class BaseBot(sc2.BotAI):
         p0, p1 = self._convert_to_tuple(p0), self._convert_to_tuple(p1)
         change_in_x = p1[0] - p0[0]
         change_in_y = p1[1] - p0[1]
-        return atan2(change_in_y, change_in_x)  # add degrees() around  if you want your answer in degrees
+        return atan2(
+            change_in_y, change_in_x
+        )  # add degrees() around  if you want your answer in degrees
 
     def distance_math_hypot(self, p0, p1):
         p0, p1 = self._convert_to_tuple(p0), self._convert_to_tuple(p1)
@@ -104,4 +108,4 @@ class BaseBot(sc2.BotAI):
         return self.solve_angle(p0, p1), self.distance_math_hypot(p0, p1)
 
     def __repr__(self):
-        return f'<BaseBot: {str(self.created_at)}>'
+        return f"<BaseBot: {str(self.created_at)}>"

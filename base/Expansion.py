@@ -8,8 +8,16 @@ from Sc2botAI.base.utils import get_edge_points
 
 
 class Expansion:
-
-    def __init__(self, ai=None, index=None, resources=None, coords=None, ramps=None, is_ours=False, is_enemies=False):
+    def __init__(
+        self,
+        ai=None,
+        index=None,
+        resources=None,
+        coords=None,
+        ramps=None,
+        is_ours=False,
+        is_enemies=False,
+    ):
         """
         Basic object for storing expansion information
         """
@@ -21,8 +29,8 @@ class Expansion:
         self.turret_positions = [[]]
         self.turret_queue = None
         self.grid_points = [[]]
-        x_offset = Point2((20.0,0.0))
-        y_offset = Point2((0.0,20.0))
+        x_offset = Point2((20.0, 0.0))
+        y_offset = Point2((0.0, 20.0))
         # need to assert the points are in the map actually
         self.top_left = Point2(self.coords.offset(-x_offset).offset(y_offset))
         self.bottom_right = Point2(self.coords.offset(x_offset).offset(-y_offset))
@@ -34,8 +42,8 @@ class Expansion:
         for ramp in self.ramps:
             ramp.name += f"+ of {self}"
 
-    def in_placement_grid(self, p: Union[Point2,Point3]) -> bool:
-        x,y = int(p.x),int(p.y)
+    def in_placement_grid(self, p: Union[Point2, Point3]) -> bool:
+        x, y = int(p.x), int(p.y)
         height = len(self.grid)
         width = len(self.grid[0])
         try:
@@ -64,8 +72,9 @@ class Expansion:
         for border in self.borders:
             b = Point2(border)
             for exp in expos_rounded:
-                if self.same_height(exp,b):
+                if self.same_height(exp, b):
                     if exp != self.coords:
+                        # distinction a very close expansion from ourselves
                         if 15 > exp.distance_to(b) > 5:
                             li.append(border)
                     else:
@@ -77,7 +86,9 @@ class Expansion:
         step = 1
         height_here = self.ai.game_info.terrain_height[self.coords]
         main_height = self.ai.game_info.terrain_height[self.ai.start_location.rounded]
-        natural_height = self.ai.game_info.terrain_height[self.ai.main_base_ramp.lower.pop()]# doesnt matter which
+        natural_height = self.ai.game_info.terrain_height[
+            self.ai.main_base_ramp.lower.pop()
+        ]  # doesnt matter which
         # if height_here == main_height:
         #     r = 20
         # elif height_here == natural_height:

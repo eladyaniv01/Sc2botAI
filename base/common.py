@@ -8,14 +8,11 @@ import numpy as np
 from .utils import get_edge_points
 
 
-
 # TODO  base manager here
 
 
-
-
 class Rectangle:
-    def __init__(self, x: int, y:int, width: int, height: int):
+    def __init__(self, x: int, y: int, width: int, height: int):
         assert isinstance(x, int)
         assert isinstance(y, int)
         assert isinstance(width, int)
@@ -32,9 +29,3 @@ class Rectangle:
     @property
     def bottom(self):
         return self.y + self.height
-
-
-
-
-
-

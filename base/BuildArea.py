@@ -1,5 +1,7 @@
 import enum
+
 # inspired by sharpy - rapid bot development framework: https://github.com/DrInfy/sharpy-sc2
+
 
 class BuildArea(enum.Enum):
     Empty = -1

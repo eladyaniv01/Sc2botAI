@@ -13,25 +13,27 @@ from sc2.position import Point3, Point2
 # TODO base manager for all managers
 # TODO identify rocks,  choke points,  high ground strategic points and the area they are superior to
 
-class MapManager:
 
-    def __init__(self, ai: Union[bot_ai, None] = None):
+class MapManager:
+    # ai: bot_ai = None
+
+    def __init__(self, ai: bot_ai = None):
         self.ai = ai
         self.cached_ramps = {}
         self.expansions = {}
         self._solved = False
         self.cliffs = []
-        self.townhall_color = Point3((200, 170, 55)) #gold
-        self.building_color = Point3((255, 0, 0)) #red
-        self.depot_color = Point3((55, 255, 200)) #lBlue
+        self.townhall_color = Point3((200, 170, 55))  # gold
+        self.building_color = Point3((255, 0, 0))  # red
+        self.depot_color = Point3((55, 255, 200))  # lBlue
         self.turret_color = Point3((0, 0, 255))
-        self.mineral_color = Point3((55, 200, 255)) #blue
-        self.gas_color = Point3((0, 155, 0)) # green
-        self.empty_color = Point3((255, 255, 255)) #white
-        self.not_buildable_color = Point3((0, 0, 0)) #black
-        self.ramp_color = Point3((139, 0, 0)) # brown
-        self.vision_blocker_color = Point3((139, 0, 80)) #purple
-        self.height_map = None # will be set on first solve expansions
+        self.mineral_color = Point3((55, 200, 255))  # blue
+        self.gas_color = Point3((0, 155, 0))  # green
+        self.empty_color = Point3((255, 255, 255))  # white
+        self.not_buildable_color = Point3((0, 0, 0))  # black
+        self.ramp_color = Point3((139, 0, 0))  # brown
+        self.vision_blocker_color = Point3((139, 0, 80))  # purple
+        self.height_map = None  # will be set on first solve expansions
 
     def solve_ramps(self):
         for index, ramp in enumerate(self.ai.game_info.map_ramps):
@@ -43,9 +45,11 @@ class MapManager:
             return True
         self.height_map = self.ai.game_info.terrain_height
         self.solve_ramps()
-        expansion_dict = sorted(self.ai.expansion_locations.items(),
-                                key=lambda x: x[0].distance_to_point2(list(self.ai.main_base_ramp.points)[0]),
-                                reverse=False)
+        expansion_dict = sorted(
+            self.ai.expansion_locations.items(),
+            key=lambda x: x[0].distance_to_point2(list(self.ai.main_base_ramp.points)[0]),
+            reverse=False,
+        )
 
         for index, info in enumerate(expansion_dict):
             expansion = Expansion(
@@ -53,7 +57,7 @@ class MapManager:
                 index=index,
                 coords=info[0],
                 resources=info[1],
-                ramps=self.get_exp_ramps(info[0])
+                ramps=self.get_exp_ramps(info[0]),
             )
             self.expansions[index] = expansion
             expansion.set_borders()
@@ -74,8 +78,7 @@ class MapManager:
                     for new_point in n_.neighbors8:
                         if new_point.is_further_than(0, ramps[0].coords):
                             h = self.height_map[new_point.rounded]
-                            if h + 6 < h0  \
-                                    and self.ai.game_info.pathing_grid[new_point] == 1:
+                            if h + 6 < h0 and self.ai.game_info.pathing_grid[new_point] == 1:
                                 pts.append(new_point)
 
         self.cliffs = pts
@@ -102,4 +105,4 @@ class MapManager:
         return [closest]
 
     def __repr__(self):
-        return f'<ExpansionManager: {self.ai}>'
+        return f"<MapManage: {self.ai}>"
