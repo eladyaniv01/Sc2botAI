@@ -95,6 +95,8 @@ class MapManager:
             d[ramp_ext] = ramp_ext.coords.manhattan_distance(coords)
             for exp in expansions:
                 ramp_ext.expansions.append(exp)
+        # covering the cases of multiple ramps(up to two at this point), returning closest first
+        # TODO check / cover cases where there are N (N>2) ramps in an expansion
         tmp = d.copy()
         closest = min(tmp, key=tmp.get)
         del tmp[closest]
@@ -105,4 +107,4 @@ class MapManager:
         return [closest]
 
     def __repr__(self):
-        return f"<MapManage: {self.ai}>"
+        return f"<MapManager: {self.ai}>"
