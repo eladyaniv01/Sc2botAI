@@ -24,7 +24,7 @@ class DebugManager:
         # self.draw_unit_info()
         # self.draw_turret_placement()
         # self.draw_minerals()
-        # self.draw_structure_info()
+        self.draw_structure_info()
         # self.draw_vision_blockers()
 
         # self.draw_point_list(
@@ -62,30 +62,61 @@ class DebugManager:
         self._draw_point_list(self.ai.game_info.vision_blockers, text='VB', box_r=1, color=RED)
 
     def draw_regions(self):
+        box_r = 0.09
+        color = GREEN # overrides by values later on
 
         labeled_array, num_features = label(self.ai.game_info.placement_grid.data_numpy)
-        for i,row in enumerate(labeled_array):
+        rows, cols = labeled_array.shape
+        flipped = np.append(labeled_array, np.zeros((cols-rows, cols)), axis=0).T
+        # flipped = labeled_array[:,:].T
+        # print(flipped.shape)
+        # x, y = 151, 41
+        # ground_p = Point2((x,y))
+        # self.ai.client.debug_text_world(
+        #     "\n".join([
+        #         f"flipped[{x}][{y}] = {flipped[150][25]}",
+        #         f"grid[{x}][{y}] = {self.ai.game_info.pathing_grid[(x,y)]}",
+        #         f"[{ground_p.x},",
+        #         f"{ground_p.y}]",
+        #     ]), ground_p, color=color, size=20,
+        # )
+        for i, row in enumerate(flipped[:,:176]):
 
-            for j, col in enumerate(row):
+            for j, val in enumerate(row):
+                # try:
+                text = val
+                if text %2 == 0 and text != 0:
+                    color = Point3((int(text) * 10, 250, 0))
+                if text %3 == 0 and text != 0:
+                    color = Point3((0, 250, int(text) * 10))
 
-                try:
-                    text = labeled_array[i][j]
-                    if self.ai.game_info.placement_grid.data_numpy[i][j] == 1:
-                        p = Point2((i,j))
-                        h = self.ai.get_terrain_z_height(p)
-                        pos = Point3((p.x, p.y, h))
-                        # edge_points = [(points[[i, j], 0][1], points[[i, j], 1][0]) for i, j in edges]
-                        box_r = 0.2
-                        color = Point3((int(text)*10,0,250))
-                        p0 = Point3((pos.x - box_r, pos.y - box_r, pos.z + box_r)) + Point2((0.5, 0.5))
-                        p1 = Point3((pos.x + box_r, pos.y + box_r, pos.z - box_r)) + Point2((0.5, 0.5))
-                        self.ai.client.debug_box_out(p0, p1, color=color)
 
-                        self.ai.client.debug_text_world(
-                            "\n".join([f"{text}", ]), p, color=color, size=12,
-                        )
-                except Exception as e:
-                    pass
+                # if self.ai.game_info.placement_grid.data_numpy[i][j] == 1:
+                # if text != 0 and self.ai.game_info.placement_grid.data_numpy[i][j] != 0:
+                if self.ai.game_info.pathing_grid[(i, j)] != 0:
+                    p = Point2((i, j))
+                    h = self.ai.get_terrain_z_height(p)
+                    pos = Point3((p.x, p.y, h))
+                    # edge_points = [(points[[i, j], 0][1], points[[i, j], 1][0]) for i, j in edges]
+
+                    p0 = Point3((pos.x - box_r, pos.y - box_r, pos.z + box_r)) + Point2((0.5, 0.5))
+                    p1 = Point3((pos.x + box_r, pos.y + box_r, pos.z - box_r)) + Point2((0.5, 0.5))
+                    self.ai.client.debug_box_out(p0, p1, color=color)
+                    text2= ''
+                    if text == 0:
+                        text2 = "CHOKE"
+                        color = RED
+                    self.ai.client.debug_text_world(
+                        "\n".join([
+                            f"{text}",
+                            f"{text2}",
+                            f"[{p.x},",
+                            f"{p.y}]",
+                        ]), pos, color=color, size=9,
+                    )
+                # except Exception as e:
+                #     print(e)
+                #     pass
        # pts = Delaunay([point for point in self.ai.game_info.placement_grid.data_numpy if point == 1])
        # self._draw_point_list(pts, text='4', box_r=1, color=RED)
 
