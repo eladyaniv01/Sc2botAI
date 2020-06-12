@@ -1,10 +1,12 @@
 from typing import List, Union, Tuple
 from sc2 import bot_ai
-
+from scipy.ndimage import label
 from sc2.position import Point3, Point2
 import numpy as np
+from scipy.spatial.qhull import Delaunay
 
-from Sc2botAI.base.Expansion import Expansion
+from base.Expansion import Expansion
+from base.utils import get_edge_points
 
 GREEN = Point3((0, 255, 0))
 RED = Point3((255, 0, 0))
@@ -18,21 +20,25 @@ class DebugManager:
     def draw_debug(self):
         # return True #temp
         # self.draw_ramps()
-        self.draw_expansions()
+        # self.draw_expansions()
         # self.draw_unit_info()
-        self.draw_turret_placement()
-        self.draw_minerals()
+        # self.draw_turret_placement()
+        # self.draw_minerals()
         # self.draw_structure_info()
         # self.draw_vision_blockers()
-        self.draw_point_list(
-            self.ai.game_info.vision_blockers,
-            color=self.ai.map_manager.vision_blocker_color,
-            text="VB",
-            box_r=1,
-        )
-        # self.draw_point_list(self.ai.game_info.destructibles, text='DS', box_r=1, color=RED)
 
-    def draw_point_list(self, point_list: List = None, color=None, text=None, box_r=None) -> bool:
+        # self.draw_point_list(
+        #     self.ai.game_info.vision_blockers,
+        #     color=self.ai.map_manager.vision_blocker_color,
+        #     text="VB",
+        #     box_r=1,
+        # )
+        # self.draw_point_list(self.ai.game_info.destructibles, text='DS', box_r=1, color=RED)
+        #
+        # self.draw_vision_blockers()
+        self.draw_regions()
+
+    def _draw_point_list(self, point_list: List = None, color=None, text=None, box_r=None) -> bool:
         if not color:
             color = GREEN
         if not point_list or (not text and not box_r):
@@ -50,6 +56,98 @@ class DebugManager:
             if text:
                 self.ai.client.debug_text_world(
                     "\n".join([f"{text}",]), pos, color=color, size=30,
+                )
+
+    def draw_vision_blockers(self):
+        self._draw_point_list(self.ai.game_info.vision_blockers, text='VB', box_r=1, color=RED)
+
+    def draw_regions(self):
+
+        labeled_array, num_features = label(self.ai.game_info.placement_grid.data_numpy)
+        for i,row in enumerate(labeled_array):
+
+            for j, col in enumerate(row):
+
+                try:
+                    text = labeled_array[i][j]
+                    if self.ai.game_info.placement_grid.data_numpy[i][j] == 1:
+                        p = Point2((i,j))
+                        h = self.ai.get_terrain_z_height(p)
+                        pos = Point3((p.x, p.y, h))
+                        # edge_points = [(points[[i, j], 0][1], points[[i, j], 1][0]) for i, j in edges]
+                        box_r = 0.2
+                        color = Point3((int(text)*10,0,250))
+                        p0 = Point3((pos.x - box_r, pos.y - box_r, pos.z + box_r)) + Point2((0.5, 0.5))
+                        p1 = Point3((pos.x + box_r, pos.y + box_r, pos.z - box_r)) + Point2((0.5, 0.5))
+                        self.ai.client.debug_box_out(p0, p1, color=color)
+
+                        self.ai.client.debug_text_world(
+                            "\n".join([f"{text}", ]), p, color=color, size=12,
+                        )
+                except Exception as e:
+                    pass
+       # pts = Delaunay([point for point in self.ai.game_info.placement_grid.data_numpy if point == 1])
+       # self._draw_point_list(pts, text='4', box_r=1, color=RED)
+
+    def draw_expansion_borders(self, color: Union[Point3, Tuple]):
+        height_map = self.ai.game_info.terrain_height
+        for expansion in self.ai.map_manager.expansions.values():
+            height_here = height_map[expansion.coords]
+            main_height = height_map[self.ai.start_location.rounded]
+            natural_height = height_map[self.ai.main_base_ramp.lower.pop()]  # doesnt matter which
+            c = GREEN
+            if expansion.coords.rounded == self.ai.start_location.rounded:
+                c = GREEN
+            elif expansion.coords.rounded.distance_to(self.ai.start_location.rounded) < 33:
+                c = BLUE
+            else:
+                c = RED
+
+            for p in expansion.borders:
+                p = Point2(p)
+                h2 = self.ai.get_terrain_z_height(p)
+                pos = Point3((p.x, p.y, h2))
+                p0 = Point3((pos.x - 0.25, pos.y - 0.25, pos.z + 0.25)) + Point2((0.5, 0.5))
+                p1 = Point3((pos.x + 0.25, pos.y + 0.25, pos.z - 0.25)) + Point2((0.5, 0.5))
+                self.ai.client.debug_box_out(p0, p1, color=c)
+                self.ai.client.debug_text_world(f"h:{self.ai.game_info.terrain_height[p]:.2f}",
+                    pos,
+                    color=RED,
+                    size=30,
+                )
+
+    def draw_expansions(self):
+        color = GREEN
+        self.draw_expansion_borders(color)
+        for i, expansion in enumerate(self.ai.map_manager.expansions.values()):
+            # if i%2 == 0:
+            #     color = Point3((0, 255, 0))
+            # else:
+            #     color = Point3((255, 0, 0))
+
+            p = expansion.coords
+            if isinstance(p, Point2):
+                h2 = self.ai.get_terrain_z_height(p)
+                pos = Point3((p.x, p.y, h2))
+                p0 = Point3((pos.x - 2, pos.y - 2, pos.z + 2)) + Point2((0.5, 0.5))
+                p1 = Point3((pos.x + 2, pos.y + 2, pos.z - 2)) + Point2((0.5, 0.5))
+                distance_to_main = p.distance_to(self.ai.start_location.rounded)
+                # if distance_to_main < 18.0:
+                #     continue
+
+                self.ai.client.debug_box_out(p0, p1, color=color)
+                self.ai.client.debug_text_world(
+                    "\n".join(
+                        [
+                            f"{expansion}",
+                            f"distance_to_main: {distance_to_main:.2f}",
+                            f"Coords: ({p.position.x:.2f},{p.position.y:.2f})",
+                            f"Resources: ({len(expansion.resources)})",
+                        ]
+                    ),
+                    pos,
+                    color=(0, 255, 255),
+                    size=8,
                 )
 
     def draw_unit_info(self):
@@ -83,19 +181,6 @@ class DebugManager:
                 size=12,
             )
 
-    def draw_vision_blockers(self):
-        vb = self.ai.game_info.vision_blockers
-        for p in vb:
-            p = Point2(p)
-            h2 = self.ai.get_terrain_z_height(p)
-            pos = Point3((p.x, p.y, h2))
-            p0 = Point3((pos.x - 0.25, pos.y - 0.25, pos.z + 0.25)) + Point2((0.5, 0.5))
-            p1 = Point3((pos.x + 0.25, pos.y + 0.25, pos.z - 0.25)) + Point2((0.5, 0.5))
-            color = Point3((0, 255, 0))
-            self.ai.client.debug_box_out(p0, p1, color=color)
-            self.ai.client.debug_text_world(
-                "\n".join([f"VB",]), pos, color=color, size=30,
-            )
 
     def draw_expansion_grid(self, expansion: Expansion, color: Union[Point3, Tuple]):
 
@@ -116,28 +201,6 @@ class DebugManager:
         points = [x.position for x in self.ai.mineral_field]
         self.draw_point_list(points, color=self.ai.map_manager.mineral_color, box_r=0.5)
 
-    def draw_expansion_borders(self, color: Union[Point3, Tuple]):
-        height_map = self.ai.game_info.terrain_height
-
-        for expansion in self.ai.map_manager.expansions.values():
-            height_here = height_map[expansion.coords]
-            main_height = height_map[self.ai.start_location.rounded]
-            natural_height = height_map[self.ai.main_base_ramp.lower.pop()]  # doesnt matter which
-            c = GREEN
-            if expansion.coords.rounded == self.ai.start_location.rounded:
-                c = GREEN
-            elif expansion.coords.rounded.distance_to(self.ai.start_location.rounded) < 33:
-                c = BLUE
-            else:
-                c = RED
-
-            for p in expansion.borders:
-                p = Point2(p)
-                h2 = self.ai.get_terrain_z_height(p)
-                pos = Point3((p.x, p.y, h2))
-                p0 = Point3((pos.x - 0.25, pos.y - 0.25, pos.z + 0.25)) + Point2((0.5, 0.5))
-                p1 = Point3((pos.x + 0.25, pos.y + 0.25, pos.z - 0.25)) + Point2((0.5, 0.5))
-                self.ai.client.debug_box_out(p0, p1, color=c)
 
     def draw_turret_placement(self):
 
@@ -229,39 +292,6 @@ class DebugManager:
                     size=12,
                 )
 
-    def draw_expansions(self):
-        color = GREEN
-        self.draw_expansion_borders(color)
-        for i, expansion in enumerate(self.ai.map_manager.expansions.values()):
-            # if i%2 == 0:
-            #     color = Point3((0, 255, 0))
-            # else:
-            #     color = Point3((255, 0, 0))
-
-            p = expansion.coords
-            if isinstance(p, Point2):
-                h2 = self.ai.get_terrain_z_height(p)
-                pos = Point3((p.x, p.y, h2))
-                p0 = Point3((pos.x - 2, pos.y - 2, pos.z + 2)) + Point2((0.5, 0.5))
-                p1 = Point3((pos.x + 2, pos.y + 2, pos.z - 2)) + Point2((0.5, 0.5))
-                distance_to_main = p.distance_to(self.ai.start_location.rounded)
-                # if distance_to_main < 18.0:
-                #     continue
-
-                self.ai.client.debug_box_out(p0, p1, color=color)
-                self.ai.client.debug_text_world(
-                    "\n".join(
-                        [
-                            f"{expansion}",
-                            f"distance_to_main: {distance_to_main:.2f}",
-                            f"Coords: ({p.position.x:.2f},{p.position.y:.2f})",
-                            f"Resources: ({len(expansion.resources)})",
-                        ]
-                    ),
-                    pos,
-                    color=(0, 255, 255),
-                    size=8,
-                )
 
 
 # _game_info.vision_blockers

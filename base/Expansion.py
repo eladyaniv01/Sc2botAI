@@ -1,11 +1,9 @@
 from typing import List, Union
-
 import numpy as np
-
 from sc2.position import Point2, Point3
 from .RampExt import RampExt
-from Sc2botAI.base.utils import get_edge_points
-
+from .utils import get_edge_points
+from scipy.ndimage import label
 
 class Expansion:
     def __init__(
@@ -81,23 +79,24 @@ class Expansion:
                         li.append(border)
         self.borders = list(set(li))
 
-    def set_borders(self, r=18):
+    def too_close_to_another_expansion(self, expansion: Point2, p1: Point2) -> bool:
+        for expansion_center in self.ai.expansion_locations_dict.keys():
+            if expansion_center == expansion:
+                continue
+            if expansion_center.distance_to_point2(p1) < 5:
+                return True
+        return False
+
+    def is_delta_point(self, expansion: Point2, p1: Point2) -> bool:
+        for expansion_center in self.ai.expansion_locations_dict.keys():
+            if expansion_center == expansion:
+                continue
+            if expansion_center.distance_to_point2(p1) < 5:
+                return False
+        return True
+
+    def set_borders(self, r=20):
         self.coords = self.coords.rounded
-        step = 1
-        height_here = self.ai.game_info.terrain_height[self.coords]
-        main_height = self.ai.game_info.terrain_height[self.ai.start_location.rounded]
-        natural_height = self.ai.game_info.terrain_height[
-            self.ai.main_base_ramp.lower.pop()
-        ]  # doesnt matter which
-        # if height_here == main_height:
-        #     r = 20
-        # elif height_here == natural_height:
-        #     print(natural_height)
-        #     r = 15
-        #     step = 2
-        # else:
-        #     self.borders = []
-        #     return True
         loc = self.coords
 
         row_start = loc.y - r
@@ -106,7 +105,7 @@ class Expansion:
         col_end = loc.x + r
         points = []
         p_arr = []
-        for (b, a), value in np.ndenumerate(self.grid):
+        for (b, a), value in np.ndenumerate(self.grid): # TODO should take a sub matrix with the radius and not entire grid
             p = (a, b)
             # skip non placements which are zero
             if value == 0 or not self.same_height(Point2(p), self.coords):
@@ -117,13 +116,15 @@ class Expansion:
             if not (row_start <= b <= row_end):
                 continue
             points.append(p)
-            point = []
-            point.append(p[0])
-            point.append(p[1])
+            point = [p[0], p[1]]
             p_arr.append(point)
         self.grid_points = points
         p_arr = np.array(p_arr)
-        edges = get_edge_points(p_arr, 0.8)
+        raw_edges = get_edge_points(p_arr, 0.8, only_outer=True)
+        edges = []
+        for edge in raw_edges:
+            if not self.too_close_to_another_expansion(self.coords, edge):
+                edges.append(edge)
         # final_edges = []
         # step = 1
         # for i in range(0,len(edges),step):
@@ -131,7 +132,7 @@ class Expansion:
         # self.borders = final_edges
         self.borders = edges
         self.fix_borders()
-        self.solve_turret_placements()
+        # self.solve_turret_placements()
 
     def __repr__(self):
         return f"<Expansion:[{self.index}]>"

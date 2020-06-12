@@ -1,4 +1,4 @@
-from Sc2botAI.BaseBot import BaseBot
+from BaseBot import BaseBot
 import sys, os
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
@@ -57,10 +57,10 @@ class PickleRick(BaseBot):
 
     async def on_step(self, iteration):
         await super().on_step(iteration)
-        if not self.units(UnitTypeId.REAPER):
-            loc = self.main_base_ramp.top_center
-            await self.client.debug_create_unit([[UnitTypeId.REAPER, 1, loc, 1]])
-        return True
+        # if not self.units(UnitTypeId.REAPER):
+        #     loc = self.main_base_ramp.top_center
+        #     await self.client.debug_create_unit([[UnitTypeId.REAPER, 1, loc, 1]])
+        # return True
         # training block
 
         # enemy_units = self.enemy_units
@@ -476,7 +476,7 @@ def main():
     sc2.run_game(
         sc2.maps.get(map),
         [Bot(Race.Terran, PickleRick(debug=True)), Computer(Race.Zerg, Difficulty.Hard),],
-        realtime=True,
+        realtime=False,
         # sc2_version="4.10.1",
     )
 

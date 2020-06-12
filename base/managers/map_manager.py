@@ -1,10 +1,10 @@
 from collections import namedtuple
 from typing import Union
-
+from scipy.ndimage import label
 from sc2 import bot_ai
 
-from Sc2botAI.base.Expansion import Expansion
-from Sc2botAI.base.RampExt import RampExt
+from base.Expansion import Expansion
+from base.RampExt import RampExt
 from sc2.position import Point3, Point2
 
 # ExpansionTuple = namedtuple("Expansion", ["name", "coords", "resources", "ramp"])
@@ -46,7 +46,7 @@ class MapManager:
         self.height_map = self.ai.game_info.terrain_height
         self.solve_ramps()
         expansion_dict = sorted(
-            self.ai.expansion_locations.items(),
+            self.ai.expansion_locations_dict.items(),
             key=lambda x: x[0].distance_to_point2(list(self.ai.main_base_ramp.points)[0]),
             reverse=False,
         )

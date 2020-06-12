@@ -7,7 +7,8 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2, Point3
 from sc2.unit import Unit
 import enum
-from Sc2botAI.base.drivers.BaseDriver import BaseDriver
+from base.drivers.BaseDriver import BaseDriver
+from UnitRole import UnitRole
 
 
 class ReaperDriver(BaseDriver):
@@ -52,8 +53,11 @@ class ReaperDriver(BaseDriver):
         enemies_can_attack = enemies.filter(lambda unit: unit.can_attack_ground)
 
         for r in self.ai.units(UnitTypeId.REAPER):
+            # assert (
+            #     r.PRIORITY
+            # ), f"PRIORITY is not set for {r}"  # this breaks when debugger creates a unit
             assert (
-                r.PRIORITY
+                r.tag in self.ai.roles[UnitRole.New]
             ), f"PRIORITY is not set for {r}"  # this breaks when debugger creates a unit
             self.WORKERS = (
                 self.ai.enemy_units(UnitTypeId.DRONE)
