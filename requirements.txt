@@ -38,7 +38,7 @@ mistune==0.8.4
 more-itertools==7.2.0
 mpyq==0.2.5
 multidict==4.7.5
-numpy==1.17.3
+numpy==1.22.0
 opencv-python
 opt-einsum==3.2.0
 packaging==20.3
